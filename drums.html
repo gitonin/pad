@@ -1,0 +1,1252 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0b0c0e">
+<title>NEON HAND — FINGER DRUMS</title>
+<style>
+:root{
+  --bg:#0b0c0e;
+  --panel:#141619;
+  --panel2:#191c21;
+  --line:#262a31;
+  --line2:#343943;
+  --txt:#e8ecf2;
+  --dim:#767d88;
+  --neon:#ffffff;
+  --glow:0 0 6px rgba(255,255,255,.85), 0 0 18px rgba(255,255,255,.35);
+  --glow-s:0 0 4px rgba(255,255,255,.6);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);}
+body{
+  font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color:var(--txt);
+  -webkit-user-select:none;user-select:none;
+  touch-action:none;overscroll-behavior:none;
+}
+#app{
+  position:fixed;inset:0;display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* ---------- HEADER ---------- */
+header{
+  flex:0 0 auto;display:flex;align-items:center;gap:9px;overflow:hidden;
+  padding:8px 12px 7px;border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,#101216,#0b0c0e);
+}
+.logo{flex:0 0 auto;font-size:10px;letter-spacing:.22em;font-weight:600;color:var(--neon);text-shadow:var(--glow-s);white-space:nowrap;}
+.logo span{color:var(--dim);text-shadow:none;}
+.grid16{display:flex;gap:2px;margin-left:auto;flex:0 0 auto;}
+.gq{width:5px;height:5px;border:1px solid var(--line2);border-radius:1px;}
+.gq.on{background:var(--neon);border-color:var(--neon);box-shadow:var(--glow);}
+.gq.beat{border-color:#4a515c;}
+.bpmread{font-size:10px;letter-spacing:.12em;color:var(--dim);min-width:50px;text-align:right;flex:0 0 auto;}
+.bpmread b{color:var(--txt);font-weight:600;}
+
+/* ---------- STAGE ---------- */
+#stage{position:relative;flex:1 1 auto;min-height:0;overflow:hidden;background:#000;}
+#cam{
+  position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;transform:scaleX(-1);
+  filter:grayscale(1) contrast(1.05) brightness(.38);
+}
+#fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+#vignette{
+  position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(130% 95% at 50% 45%,transparent 35%,rgba(0,0,0,.70) 100%),
+    repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
+}
+#hud{
+  position:absolute;left:0;right:0;top:0;pointer-events:none;
+  display:flex;justify-content:center;padding:9px;
+}
+#status{
+  font-size:8.5px;letter-spacing:.18em;color:#8b939e;
+  background:rgba(8,9,11,.74);border:1px solid var(--line);
+  padding:3px 8px;border-radius:2px;transition:opacity .4s;
+}
+/* légende affichée tant qu'aucune main n'est vue */
+#legend{
+  position:absolute;left:0;right:0;bottom:0;pointer-events:none;
+  padding:12px;display:flex;gap:10px;justify-content:center;
+  transition:opacity .45s;
+}
+#legend .col{flex:0 1 150px;}
+#legend .ttl{font-size:8px;letter-spacing:.2em;color:#fff;text-shadow:var(--glow-s);margin-bottom:5px;}
+#legend .row{display:flex;justify-content:space-between;font-size:8px;letter-spacing:.1em;color:#7e8691;line-height:1.75;}
+#legend .row b{color:#c3cad3;font-weight:400;}
+
+/* repli tactile si le tracking n'est pas disponible */
+#touchkit{position:absolute;inset:0;display:none;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(2,1fr);gap:6px;padding:8px;}
+#touchkit.show{display:grid;}
+#touchkit .tk{
+  border:1px solid var(--line2);border-radius:3px;background:rgba(14,16,19,.55);
+  display:flex;align-items:center;justify-content:center;
+  font-size:8px;letter-spacing:.1em;color:#aab1bb;text-align:center;padding:4px;
+}
+#touchkit .tk:active{background:#fff;color:#000;border-color:#fff;box-shadow:var(--glow);}
+
+/* ---------- FOOTER ---------- */
+footer{
+  flex:0 0 auto;background:linear-gradient(180deg,#101216,#0b0c0e);
+  border-top:1px solid var(--line);padding:9px 12px 10px;
+  display:flex;flex-direction:column;gap:7px;
+}
+.row{display:flex;gap:6px;}
+.sect{font-size:7.5px;letter-spacing:.22em;color:#525964;padding:1px 0 0 1px;}
+.nap{
+  flex:1 1 0;position:relative;overflow:hidden;
+  border:1px solid var(--line2);background:var(--panel2);color:#aab1bb;
+  font:inherit;font-size:8.5px;letter-spacing:.11em;font-weight:600;
+  padding:9px 2px 10px;border-radius:2px;text-align:center;line-height:1.35;
+  transition:border-color .15s, background .15s, color .15s;
+}
+.nap .s{display:block;font-size:6.5px;letter-spacing:.14em;color:#5c636e;font-weight:400;margin-top:2px;}
+.nap.on{
+  background:rgba(255,255,255,.085);color:#fff;border-color:#fff;
+  box-shadow:0 0 12px rgba(255,255,255,.16), 0 0 0 1px rgba(255,255,255,.22) inset;
+  text-shadow:var(--glow-s);
+}
+.nap.on .s{color:#98a0ab;}
+/* souffle lent des nappes actives */
+.nap.on::after{
+  content:'';position:absolute;left:0;right:0;bottom:0;height:1px;background:#fff;
+  box-shadow:var(--glow);animation:breathe 4.5s ease-in-out infinite;
+}
+@keyframes breathe{0%,100%{opacity:.25}50%{opacity:1}}
+.btn{
+  flex:1;border:1px solid var(--line2);background:var(--panel2);color:#b6bdc7;
+  font:inherit;font-size:8.5px;letter-spacing:.12em;font-weight:600;
+  padding:9px 3px;border-radius:2px;text-align:center;
+}
+.btn:active,.btn.hit{background:#fff;color:#0b0c0e;border-color:#fff;box-shadow:var(--glow);}
+.btn.tog.on{background:rgba(255,255,255,.10);color:#fff;border-color:#fff;}
+
+.knobs{display:flex;justify-content:space-between;gap:10px;margin-top:1px;}
+.knob{flex:1 1 0;display:flex;flex-direction:column;align-items:center;gap:3px;touch-action:none;}
+.kdial{
+  position:relative;width:48px;height:48px;border-radius:50%;
+  background:radial-gradient(circle at 50% 38%,#22262c,#131519 70%,#0e1013);
+  border:1px solid var(--line2);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 3px 8px rgba(0,0,0,.55);
+}
+.kdial svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
+.karc{fill:none;stroke:rgba(255,255,255,.09);stroke-width:2.5;}
+.kval{fill:none;stroke:#fff;stroke-width:2.5;stroke-linecap:round;filter:drop-shadow(0 0 4px rgba(255,255,255,.75));}
+.kptr{
+  position:absolute;left:50%;top:50%;width:2px;height:16px;margin-left:-1px;
+  background:linear-gradient(180deg,#fff,rgba(255,255,255,.25));
+  transform-origin:50% 100%;border-radius:1px;box-shadow:0 0 5px rgba(255,255,255,.8);
+}
+.klbl{font-size:7.5px;letter-spacing:.18em;color:var(--dim);}
+.knum{font-size:9px;letter-spacing:.08em;color:#c8cfd8;}
+.bpmrow{display:flex;align-items:center;gap:8px;}
+.bpmrow .klbl{min-width:24px;}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:20px;background:transparent;}
+input[type=range]::-webkit-slider-runnable-track{
+  height:2px;background:linear-gradient(90deg,#fff var(--p,50%),rgba(255,255,255,.12) 0);
+  box-shadow:0 0 6px rgba(255,255,255,.3);
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:15px;height:15px;margin-top:-6.5px;border-radius:50%;
+  background:#fff;box-shadow:var(--glow);border:none;
+}
+input[type=range]::-moz-range-track{height:2px;background:rgba(255,255,255,.12);}
+input[type=range]::-moz-range-thumb{width:15px;height:15px;border:none;border-radius:50%;background:#fff;}
+.tapb{
+  border:1px solid var(--line2);background:var(--panel2);color:#aab1bb;
+  font:inherit;font-size:8.5px;letter-spacing:.1em;padding:5px 9px;border-radius:2px;
+}
+.tapb:active{background:#fff;color:#000;}
+
+/* ---------- BOOT ---------- */
+#boot{
+  position:fixed;inset:0;z-index:50;background:#0b0c0e;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;
+  padding:34px;text-align:center;
+}
+#boot h1{margin:0;font-size:15px;letter-spacing:.34em;font-weight:600;color:#fff;text-shadow:var(--glow);}
+#boot .sub{font-size:9.5px;letter-spacing:.16em;color:var(--dim);line-height:2.1;max-width:300px;}
+#startbtn{
+  border:1px solid #fff;background:transparent;color:#fff;
+  font:inherit;font-size:11px;letter-spacing:.28em;font-weight:600;
+  padding:16px 34px;border-radius:2px;text-shadow:var(--glow-s);
+  animation:pulse 2.2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{box-shadow:0 0 10px rgba(255,255,255,.14),0 0 10px rgba(255,255,255,.07) inset}50%{box-shadow:0 0 22px rgba(255,255,255,.34),0 0 18px rgba(255,255,255,.14) inset}}
+#boot .note{font-size:8px;letter-spacing:.12em;color:#4c535d;max-width:300px;line-height:1.9;}
+.hidden{display:none!important;}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <div class="logo">NEON&nbsp;HAND <span>/ DRUMS</span></div>
+    <div class="grid16" id="grid16"></div>
+    <div class="bpmread"><b id="bpmread">118</b> BPM</div>
+  </header>
+
+  <div id="stage">
+    <video id="cam" playsinline muted autoplay></video>
+    <canvas id="fx"></canvas>
+    <div id="vignette"></div>
+    <div id="touchkit"></div>
+    <div id="legend"></div>
+    <div id="hud"><div id="status">INIT…</div></div>
+  </div>
+
+  <footer>
+    <div class="sect">NAPPES — BASSES</div>
+    <div class="row" id="rowBass"></div>
+    <div class="sect">NAPPES — SYNTHÉS</div>
+    <div class="row" id="rowSyn"></div>
+    <div class="row">
+      <button class="btn" id="vox">I WANNA DANCE</button>
+      <button class="btn tog" id="quant">QUANT</button>
+      <button class="btn" id="allOff">ALL OFF</button>
+    </div>
+    <div class="knobs">
+      <div class="knob" id="k-delay"><div class="kdial"></div><div class="knum">0</div><div class="klbl">DELAY</div></div>
+      <div class="knob" id="k-drive"><div class="kdial"></div><div class="knum">0</div><div class="klbl">DIST</div></div>
+      <div class="knob" id="k-pitch"><div class="kdial"></div><div class="knum">0</div><div class="klbl">PITCH</div></div>
+    </div>
+    <div class="bpmrow">
+      <div class="klbl">BPM</div>
+      <input type="range" id="bpm" min="88" max="152" step="1" value="118">
+      <button class="tapb" id="tap">TAP</button>
+      <button class="tapb" id="rnd">RND</button>
+    </div>
+  </footer>
+</div>
+
+<div id="boot">
+  <h1>NEON HAND</h1>
+  <div class="sub">
+    NAPPES AUX BOUTONS<br>
+    PERCUSSIONS AUX DOIGTS<br>
+    <span style="color:#4c535d">UN DOIGT QUI SE PLIE = UN SON</span>
+  </div>
+  <button id="startbtn">DÉMARRER</button>
+  <div class="note" id="bootnote">
+    AUTORISE LA CAMÉRA · IPHONE EN MODE PORTRAIT · CASQUE OU ENCEINTE RECOMMANDÉ
+  </div>
+</div>
+
+<script type="module">
+'use strict';
+
+/* =========================================================================
+   NEON HAND — FINGER DRUMS
+   Nappes tenues aux boutons, percussions jouées aux doigts via la caméra.
+   Tout le son est synthétisé en Web Audio.
+   ========================================================================= */
+
+const $ = (s) => document.querySelector(s);
+const clamp = (v,a,b) => v < a ? a : v > b ? b : v;
+const lerp  = (a,b,t) => a + (b-a)*t;
+const rnd   = (a,b) => a + Math.random()*(b-a);
+const pick  = (arr) => arr[(Math.random()*arr.length)|0];
+
+/* ---------------------------------------------------------------- état */
+const state = {
+  bpm       : 118,
+  root      : 0,          // tonique, en demi-tons depuis La
+  scale     : [0,3,5,7,10],
+  transpose : 0,          // potard PITCH
+  delay     : 0,
+  drive     : 0,
+  quantize  : false,
+};
+const beatDur = () => 60 / state.bpm;
+const ratio   = () => Math.pow(2, state.transpose / 12);
+const hz      = (semi, oct=0) => 55 * Math.pow(2, (semi + state.root)/12 + oct) * ratio();
+
+/* =========================================================================
+   CHAÎNE AUDIO
+   ========================================================================= */
+let ac = null, noiseBuf = null;
+const bus = {};
+
+function makeNoise(){
+  const len = Math.floor(ac.sampleRate * 2);
+  const b = ac.createBuffer(1, len, ac.sampleRate);
+  const d = b.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random()*2 - 1;
+  return b;
+}
+function noiseSrc(){
+  const s = ac.createBufferSource();
+  s.buffer = noiseBuf; s.loop = true;
+  s.playbackRate.value = rnd(0.85, 1.15);
+  return s;
+}
+function distCurve(amount){
+  const k = amount * amount * 340, n = 2048, c = new Float32Array(n);
+  for (let i = 0; i < n; i++){ const x = (i*2)/n - 1; c[i] = (1+k)*x / (1 + k*Math.abs(x)); }
+  return c;
+}
+function crushCurve(levels){
+  const n = 1024, c = new Float32Array(n);
+  for (let i = 0; i < n; i++){ const x = (i*2)/n - 1; c[i] = Math.round(x*levels)/levels; }
+  return c;
+}
+
+function buildAudio(){
+  const AC = window.AudioContext || window.webkitAudioContext;
+  ac = new AC({ latencyHint: 'interactive' });
+  noiseBuf = makeNoise();
+
+  bus.perc = ac.createGain(); bus.perc.gain.value = 1.0;    // percussions
+  bus.pad  = ac.createGain(); bus.pad.gain.value  = 0.62;   // nappes tenues
+  bus.mix  = ac.createGain(); bus.mix.gain.value  = 0.9;
+
+  bus.preDrive  = ac.createGain();
+  bus.shaper    = ac.createWaveShaper(); bus.shaper.curve = distCurve(0); bus.shaper.oversample = '2x';
+  bus.postDrive = ac.createGain();
+  bus.tone      = ac.createBiquadFilter(); bus.tone.type='lowpass'; bus.tone.frequency.value=15000; bus.tone.Q.value=0.5;
+
+  bus.dSend = ac.createGain(); bus.dSend.gain.value = 0;
+  bus.delay = ac.createDelay(2.0);
+  bus.dFb   = ac.createGain(); bus.dFb.gain.value = 0.3;
+  bus.dFilt = ac.createBiquadFilter(); bus.dFilt.type='bandpass'; bus.dFilt.frequency.value=1400; bus.dFilt.Q.value=0.6;
+
+  bus.comp = ac.createDynamicsCompressor();
+  bus.comp.threshold.value = -9; bus.comp.knee.value = 6; bus.comp.ratio.value = 12;
+  bus.comp.attack.value = 0.003; bus.comp.release.value = 0.14;
+
+  bus.master = ac.createGain(); bus.master.gain.value = 0.0001;
+
+  bus.perc.connect(bus.mix); bus.pad.connect(bus.mix);
+  bus.mix.connect(bus.preDrive);
+  bus.preDrive.connect(bus.shaper);
+  bus.shaper.connect(bus.postDrive);
+  bus.postDrive.connect(bus.tone);
+  bus.tone.connect(bus.comp);
+  bus.tone.connect(bus.dSend);
+  bus.dSend.connect(bus.delay);
+  bus.delay.connect(bus.dFilt);
+  bus.dFilt.connect(bus.dFb); bus.dFb.connect(bus.delay);
+  bus.dFilt.connect(bus.comp);
+  bus.comp.connect(bus.master);
+  bus.master.connect(ac.destination);
+
+  applyFx();
+  bus.master.gain.exponentialRampToValueAtTime(0.85, ac.currentTime + 0.6);
+}
+
+function applyFx(){
+  if (!ac) return;
+  const t = ac.currentTime;
+  bus.delay.delayTime.setTargetAtTime(clamp(beatDur()*0.75, 0.02, 1.9), t, 0.05);
+  bus.dSend.gain.setTargetAtTime(state.delay * 0.65, t, 0.04);
+  bus.dFb.gain.setTargetAtTime(0.20 + state.delay * 0.50, t, 0.04);
+  bus.shaper.curve = distCurve(state.drive);
+  bus.preDrive.gain.setTargetAtTime(1 + state.drive * 2.2, t, 0.04);
+  bus.postDrive.gain.setTargetAtTime(1 / (1 + state.drive * 1.9), t, 0.04);
+  bus.tone.frequency.setTargetAtTime(15000 - state.drive * 8500, t, 0.05);
+}
+
+function env(param, t, peak, a, d){
+  param.cancelScheduledValues(t);
+  param.setValueAtTime(0.0001, t);
+  param.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + a);
+  param.exponentialRampToValueAtTime(0.0001, t + a + d);
+}
+function stopAt(nodes, t){ for (const n of nodes){ try { n.stop(t); } catch(e){} } }
+
+/* =========================================================================
+   PERCUSSIONS — un son par doigt, vélocité 0..1
+   ========================================================================= */
+const dR = () => Math.pow(2, state.transpose/12 * 0.5);   // les fûts suivent le pitch à moitié
+
+const PERC = {
+  kick(t, v){
+    const r = dR(), o = ac.createOscillator(), g = ac.createGain();
+    o.type='sine'; o.connect(g); g.connect(bus.perc);
+    o.frequency.setValueAtTime(150*r, t);
+    o.frequency.exponentialRampToValueAtTime(48*r, t + 0.055);
+    env(g.gain, t, 0.95*v, 0.002, 0.34);
+    o.start(t); stopAt([o], t + 0.45);
+    const n = noiseSrc(), hp = ac.createBiquadFilter(), ng = ac.createGain();
+    hp.type='highpass'; hp.frequency.value=1900;
+    n.connect(hp); hp.connect(ng); ng.connect(bus.perc);
+    env(ng.gain, t, 0.26*v, 0.001, 0.013);
+    n.start(t); stopAt([n], t + 0.07);
+  },
+  sub(t, v){                                   // 808 long
+    const r = dR(), o = ac.createOscillator(), g = ac.createGain();
+    o.type='sine'; o.connect(g); g.connect(bus.perc);
+    o.frequency.setValueAtTime(110*r, t);
+    o.frequency.exponentialRampToValueAtTime(36*r, t + 0.10);
+    env(g.gain, t, 0.9*v, 0.004, 0.85);
+    o.start(t); stopAt([o], t + 1.0);
+  },
+  hat(t, v){
+    const n = noiseSrc(), hp = ac.createBiquadFilter(), bp = ac.createBiquadFilter(), g = ac.createGain();
+    hp.type='highpass'; hp.frequency.value = 8200*dR();
+    bp.type='bandpass'; bp.frequency.value = 11000*dR(); bp.Q.value=0.7;
+    n.connect(hp); hp.connect(bp); bp.connect(g); g.connect(bus.perc);
+    env(g.gain, t, 0.30*v, 0.001, 0.038);
+    n.start(t); stopAt([n], t + 0.1);
+  },
+  ohat(t, v){
+    const n = noiseSrc(), hp = ac.createBiquadFilter(), g = ac.createGain();
+    hp.type='highpass'; hp.frequency.value = 7600*dR();
+    n.connect(hp); hp.connect(g); g.connect(bus.perc);
+    env(g.gain, t, 0.24*v, 0.002, 0.30);
+    n.start(t); stopAt([n], t + 0.4);
+  },
+  shaker(t, v){
+    const n = noiseSrc(), bp = ac.createBiquadFilter(), g = ac.createGain();
+    bp.type='bandpass'; bp.frequency.value = 6200*dR(); bp.Q.value = 2.2;
+    n.connect(bp); bp.connect(g); g.connect(bus.perc);
+    env(g.gain, t, 0.26*v, 0.006, 0.075);
+    n.start(t); stopAt([n], t + 0.15);
+  },
+  clap(t, v){
+    const n = noiseSrc(), bp = ac.createBiquadFilter(), g = ac.createGain();
+    bp.type='bandpass'; bp.frequency.value = 1350*dR(); bp.Q.value = 1.1;
+    g.gain.value = 0;
+    n.connect(bp); bp.connect(g); g.connect(bus.perc);
+    const sp = 0.009;
+    for (let i = 0; i < 3; i++){
+      const tt = t + i*sp;
+      g.gain.setValueAtTime(0.0001, tt);
+      g.gain.exponentialRampToValueAtTime(0.55*v, tt + 0.001);
+      g.gain.exponentialRampToValueAtTime(0.06*v, tt + sp*0.9);
+    }
+    g.gain.setValueAtTime(0.5*v, t + 3*sp);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 3*sp + 0.17);
+    n.start(t); stopAt([n], t + 0.4);
+  },
+  snare(t, v){
+    const r = dR();
+    const n = noiseSrc(), hp = ac.createBiquadFilter(), ng = ac.createGain();
+    hp.type='highpass'; hp.frequency.value = 1700*r;
+    n.connect(hp); hp.connect(ng); ng.connect(bus.perc);
+    env(ng.gain, t, 0.42*v, 0.001, 0.14);
+    n.start(t); stopAt([n], t + 0.3);
+    for (const f of [185, 278]){
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type='triangle'; o.frequency.setValueAtTime(f*r, t);
+      o.connect(g); g.connect(bus.perc);
+      env(g.gain, t, 0.26*v, 0.001, 0.10);
+      o.start(t); stopAt([o], t + 0.2);
+    }
+  },
+  rim(t, v){
+    const r = dR();
+    const o = ac.createOscillator(), bp = ac.createBiquadFilter(), g = ac.createGain();
+    o.type='triangle'; bp.type='bandpass'; bp.frequency.value = 1750*r; bp.Q.value = 7;
+    o.connect(bp); bp.connect(g); g.connect(bus.perc);
+    o.frequency.setValueAtTime(2100*r, t);
+    o.frequency.exponentialRampToValueAtTime(950*r, t + 0.02);
+    env(g.gain, t, 0.45*v, 0.001, 0.05);
+    o.start(t); stopAt([o], t + 0.12);
+  },
+  tom(t, v){
+    const r = dR(), o = ac.createOscillator(), g = ac.createGain();
+    o.type='sine'; o.connect(g); g.connect(bus.perc);
+    o.frequency.setValueAtTime(320*r, t);
+    o.frequency.exponentialRampToValueAtTime(130*r, t + 0.10);
+    env(g.gain, t, 0.50*v, 0.002, 0.26);
+    o.start(t); stopAt([o], t + 0.4);
+  },
+  cow(t, v){
+    const r = dR(), g = ac.createGain(), bp = ac.createBiquadFilter();
+    bp.type='bandpass'; bp.frequency.value = 820*r; bp.Q.value = 2.5;
+    bp.connect(g); g.connect(bus.perc);
+    const os = [];
+    for (const f of [587, 845]){
+      const o = ac.createOscillator(); o.type='square';
+      o.frequency.setValueAtTime(f*r, t); o.connect(bp); os.push(o);
+    }
+    env(g.gain, t, 0.26*v, 0.002, 0.17);
+    for (const o of os) o.start(t);
+    stopAt(os, t + 0.3);
+  },
+};
+
+/* =========================================================================
+   VOIX « I WANNA DANCE » — synthèse à formants
+   ========================================================================= */
+const VOX_SEG = [
+  { a:0.00, b:0.19, f:[700,1180,2550], to:[330,2250,3000], g:1.00, n:0    },
+  { a:0.19, b:0.24, f:[330,2250,3000], to:[330,2250,3000], g:0.30, n:0    },
+  { a:0.26, b:0.34, f:[320, 700,2300], to:[420, 900,2350], g:0.85, n:0    },
+  { a:0.34, b:0.47, f:[600,1010,2450], to:[590, 990,2450], g:1.00, n:0    },
+  { a:0.47, b:0.55, f:[280,1300,2500], to:[280,1300,2500], g:0.55, n:0    },
+  { a:0.55, b:0.65, f:[500,1500,2500], to:[520,1560,2520], g:0.80, n:0    },
+  { a:0.66, b:0.70, f:[400,1700,2600], to:[400,1700,2600], g:0.25, n:0.55 },
+  { a:0.70, b:0.90, f:[680,1720,2500], to:[640,1680,2480], g:1.00, n:0    },
+  { a:0.90, b:0.98, f:[280,1300,2450], to:[280,1300,2450], g:0.55, n:0    },
+  { a:0.99, b:1.18, f:[400,2000,3200], to:[400,2000,3200], g:0.05, n:0.75 },
+];
+let voxP = { pitch:104, bits:9, speed:1.0, level:0.6 };
+
+function playVox(t){
+  const total = beatDur() * voxP.speed * 2;
+  const r = ratio(), fr = Math.pow(r, 0.45), carF = voxP.pitch * r;
+
+  const car = ac.createOscillator(); car.type='sawtooth';
+  const sub = ac.createOscillator(); sub.type='square';
+  const subG= ac.createGain(); subG.gain.value = 0.35;
+  const vib = ac.createOscillator(); vib.type='sine'; vib.frequency.value = 5.4;
+  const vibG= ac.createGain(); vibG.gain.value = carF*0.012;
+  vib.connect(vibG); vibG.connect(car.frequency);
+
+  car.frequency.setValueAtTime(carF*0.94, t);
+  car.frequency.linearRampToValueAtTime(carF*1.06, t + total*0.45);
+  car.frequency.linearRampToValueAtTime(carF*0.84, t + total);
+  sub.frequency.setValueAtTime(carF*0.5, t);
+
+  const vin = ac.createGain();
+  car.connect(vin); sub.connect(subG); subG.connect(vin);
+
+  const sum = ac.createGain(); sum.gain.value = 0.9;
+  const bands = [], bq = [11,13,10], bg = [1.0,0.72,0.34];
+  for (let i = 0; i < 3; i++){
+    const b = ac.createBiquadFilter(); b.type='bandpass'; b.Q.setValueAtTime(bq[i], t);
+    const g = ac.createGain(); g.gain.value = bg[i];
+    vin.connect(b); b.connect(g); g.connect(sum); bands.push(b);
+  }
+  const body = ac.createGain(); body.gain.value = 0.10;
+  vin.connect(body); body.connect(sum);
+
+  const n = noiseSrc(), nbp = ac.createBiquadFilter(), ng = ac.createGain();
+  nbp.type='bandpass'; nbp.frequency.value = 4200*fr; nbp.Q.value = 0.9;
+  n.connect(nbp); nbp.connect(ng); ng.connect(sum);
+
+  const crush = ac.createWaveShaper(); crush.curve = crushCurve(voxP.bits); crush.oversample='2x';
+  const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = 5200*fr; lp.Q.value=0.7;
+  const amp = ac.createGain();
+  sum.connect(crush); crush.connect(lp); lp.connect(amp); amp.connect(bus.perc);
+
+  vin.gain.setValueAtTime(0.0001, t);
+  ng.gain.setValueAtTime(0.0001, t);
+  amp.gain.setValueAtTime(0.0001, t);
+  amp.gain.linearRampToValueAtTime(voxP.level, t + 0.012);
+  for (const s of VOX_SEG){
+    const t0 = t + s.a*total, t1 = t + s.b*total;
+    for (let i = 0; i < 3; i++){
+      bands[i].frequency.setValueAtTime(s.f[i]*fr, t0);
+      bands[i].frequency.linearRampToValueAtTime(s.to[i]*fr, t1);
+    }
+    vin.gain.setTargetAtTime(Math.max(s.g, 0.0001), t0, 0.012);
+    ng.gain.setTargetAtTime(Math.max(s.n, 0.0001), t0, 0.006);
+  }
+  amp.gain.setValueAtTime(voxP.level, t + total*0.97);
+  amp.gain.exponentialRampToValueAtTime(0.0001, t + total + 0.05);
+
+  car.start(t); sub.start(t); vib.start(t); n.start(t);
+  stopAt([car, sub, vib, n], t + total + 0.2);
+}
+
+/* =========================================================================
+   NAPPES TENUES — 3 basses + 3 synthés, continues, allumées aux boutons
+   ========================================================================= */
+function droneShell(attack, release){
+  const d = { attack, release, voices: [], nodes: [], dead: false };
+  d.out = ac.createGain(); d.out.gain.value = 0.0001; d.out.connect(bus.pad);
+  d.amp = ac.createGain(); d.amp.gain.value = 1;      // cible des LFO d'amplitude
+  d.amp.connect(d.out);
+  return d;
+}
+/* ajoute un oscillateur accordé sur la gamme ; mul permet les harmoniques non tempérées */
+function addVoice(d, dest, type, semi, oct, gain, det, mul){
+  const o = ac.createOscillator();
+  o.type = type;
+  o.detune.value = det || 0;
+  o.frequency.value = hz(semi, oct) * (mul || 1);
+  const g = ac.createGain(); g.gain.value = gain;
+  o.connect(g); g.connect(dest);
+  d.voices.push({ osc:o, semi, oct, mul: mul || 1 });
+  d.nodes.push(o);
+  return o;
+}
+function addLfo(d, rate, amount, target, phaseType){
+  const l = ac.createOscillator(); l.type = phaseType || 'sine'; l.frequency.value = rate;
+  const g = ac.createGain(); g.gain.value = amount;
+  l.connect(g); g.connect(target);
+  d.nodes.push(l);
+  return l;
+}
+function droneStart(d, t, level){
+  d.level = level;
+  for (const n of d.nodes){ try { n.start(t); } catch(e){} }
+  d.out.gain.cancelScheduledValues(t);
+  d.out.gain.setValueAtTime(0.0001, t);
+  d.out.gain.exponentialRampToValueAtTime(level, t + d.attack);
+}
+function droneKill(d, t){
+  if (d.dead) return;
+  d.dead = true;
+  const g = d.out.gain;
+  g.cancelScheduledValues(t);
+  g.setValueAtTime(Math.max(g.value, 0.0001), t);
+  g.exponentialRampToValueAtTime(0.0001, t + d.release);
+  stopAt(d.nodes, t + d.release + 0.1);
+  setTimeout(() => { try { d.out.disconnect(); } catch(e){} }, (d.release + 0.4) * 1000);
+}
+function droneRetune(d, t){
+  for (const v of d.voices){
+    v.osc.frequency.cancelScheduledValues(t);
+    v.osc.frequency.setTargetAtTime(hz(v.semi, v.oct) * v.mul, t, 0.09);
+  }
+}
+
+/* --- 1 · BASSE SUB ------------------------------------------------------ */
+function buildSub(p){
+  const d = droneShell(1.4, 1.1);
+  const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = p.cut; lp.Q.value = 0.8;
+  lp.connect(d.amp);
+  addVoice(d, lp, 'sine',     0, 0, 0.90, 0);
+  addVoice(d, lp, 'sine',     0, 0, 0.45, p.det);
+  addVoice(d, lp, 'triangle', 0, 1, 0.16, 0);
+  addLfo(d, p.rate, 0.14, d.amp.gain);
+  return d;
+}
+/* --- 2 · BASSE ACID (filtre balayé) ------------------------------------- */
+function buildAcid(p){
+  const d = droneShell(0.9, 0.9);
+  const lp = ac.createBiquadFilter(); lp.type='lowpass';
+  lp.frequency.value = p.cut; lp.Q.value = p.res;
+  lp.connect(d.amp);
+  addVoice(d, lp, p.wave, 0, 0, 0.55, 0);
+  addVoice(d, lp, p.wave, 0, 0, 0.40, p.det);
+  addVoice(d, lp, 'sine', 0, 0, 0.35, 0);
+  addLfo(d, p.rate, p.sweep, lp.frequency);
+  addLfo(d, p.rate*0.37, p.sweep*0.4, lp.frequency, 'triangle');
+  return d;
+}
+/* --- 3 · BASSE RUBBER (FM) ---------------------------------------------- */
+function buildFm(p){
+  const d = droneShell(1.1, 1.0);
+  const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = p.cut; lp.Q.value = 3;
+  lp.connect(d.amp);
+  const car = addVoice(d, lp, 'sine', 0, 0, 0.75, 0);
+  const mod = ac.createOscillator(); mod.type='sine';
+  mod.frequency.value = hz(0, 0) * p.ratio;
+  const mg = ac.createGain(); mg.gain.value = hz(0,0) * p.index;
+  mod.connect(mg); mg.connect(car.frequency);
+  d.voices.push({ osc: mod, semi: 0, oct: 0, mul: p.ratio });
+  d.nodes.push(mod);
+  addLfo(d, p.rate, hz(0,0) * p.index * 0.55, mg.gain);
+  return d;
+}
+/* --- 4 · NAPPE PAD ------------------------------------------------------ */
+function buildPad(p){
+  const d = droneShell(2.6, 2.2);
+  const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = p.cut; lp.Q.value = p.res;
+  lp.connect(d.amp);
+  for (const iv of p.chord){
+    addVoice(d, lp, p.wave, iv, p.oct, 0.17, -p.det);
+    addVoice(d, lp, p.wave, iv, p.oct, 0.17, +p.det);
+  }
+  addLfo(d, p.rate, p.cut * 0.45, lp.frequency);
+  addLfo(d, p.rate * 0.61, 0.10, d.amp.gain, 'triangle');
+  return d;
+}
+/* --- 5 · NAPPE ORGUE (harmoniques empilées) ----------------------------- */
+function buildOrgan(p){
+  const d = droneShell(0.6, 0.7);
+  const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = p.cut; lp.Q.value = 0.9;
+  lp.connect(d.amp);
+  for (const iv of p.chord){
+    for (let h = 0; h < p.harm.length; h++){
+      addVoice(d, lp, h === 0 ? p.wave : 'sine', iv, p.oct, p.harm[h], 0, h + 1);
+    }
+  }
+  addLfo(d, p.rate, 0.17, d.amp.gain);      // trémolo
+  return d;
+}
+/* --- 6 · NAPPE SHIMMER -------------------------------------------------- */
+function buildShimmer(p){
+  const d = droneShell(2.0, 1.8);
+  const bp = ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value = p.cut; bp.Q.value = p.res;
+  let tail = bp;
+  if (ac.createStereoPanner){
+    const pan = ac.createStereoPanner();
+    bp.connect(pan); tail = pan;
+    addLfo(d, p.rate * 0.43, 0.8, pan.pan, 'triangle');
+  }
+  tail.connect(d.amp);
+  for (const iv of p.chord){
+    addVoice(d, bp, p.wave, iv, p.oct,     0.11, -p.det);
+    addVoice(d, bp, 'triangle', iv, p.oct+1, 0.07, +p.det);
+  }
+  addLfo(d, p.rate, p.cut * 0.5, bp.frequency);
+  return d;
+}
+
+const DRONE_DEFS = [
+  { name:'BASS 1', sub:'SUB',     build: buildSub,     level:0.52, roll: () => ({ cut: rnd(140,320), det: rnd(4,14), rate: rnd(0.06,0.22) }) },
+  { name:'BASS 2', sub:'ACID',    build: buildAcid,    level:0.34, roll: () => ({ wave: pick(['sawtooth','square']), cut: rnd(170,340), res: rnd(7,15), det: rnd(6,18), rate: rnd(0.05,0.18), sweep: rnd(120,420) }) },
+  { name:'BASS 3', sub:'RUBBER',  build: buildFm,      level:0.38, roll: () => ({ cut: rnd(300,900), ratio: pick([1,1.5,2,3]), index: rnd(0.8,3.2), rate: rnd(0.07,0.25) }) },
+  { name:'SYN 1',  sub:'PAD',     build: buildPad,     level:0.30, roll: () => ({ wave: pick(['sawtooth','triangle']), oct: pick([2,3]), chord: pick([[0,3,7,12],[0,7,12,15],[0,3,7,10],[0,5,7,12]]), det: rnd(5,16), cut: rnd(700,1900), res: rnd(1,4), rate: rnd(0.04,0.14) }) },
+  { name:'SYN 2',  sub:'ORGUE',   build: buildOrgan,   level:0.24, roll: () => ({ wave: pick(['square','sawtooth']), oct: pick([2,3]), chord: pick([[0,7],[0,3,7],[0,7,12]]), harm: pick([[0.5,0.22,0.12],[0.45,0.3,0.0,0.14],[0.6,0.0,0.2]]), cut: rnd(1200,3200), rate: rnd(3.5,6.5) }) },
+  { name:'SYN 3',  sub:'SHIMMER', build: buildShimmer, level:0.30, roll: () => ({ wave: pick(['sawtooth','square']), oct: pick([3,4]), chord: pick([[0,7,12],[0,5,12],[0,3,10]]), det: rnd(8,24), cut: rnd(1400,3400), res: rnd(2,6), rate: rnd(0.05,0.2) }) },
+];
+
+const droneParams = DRONE_DEFS.map((d) => d.roll());
+const drones = new Array(6).fill(null);
+
+function droneOn(i){
+  if (drones[i]) return;
+  const def = DRONE_DEFS[i];
+  const d = def.build(droneParams[i]);
+  droneStart(d, ac.currentTime + 0.02, def.level);
+  drones[i] = d;
+}
+function droneOff(i){
+  if (!drones[i]) return;
+  droneKill(drones[i], ac.currentTime);
+  drones[i] = null;
+}
+function retuneAll(){
+  if (!ac) return;
+  const t = ac.currentTime;
+  for (const d of drones) if (d) droneRetune(d, t);
+}
+/* rejoue à l'identique une nappe active, après re-tirage de son timbre */
+function rebuildActive(){
+  for (let i = 0; i < 6; i++){
+    if (drones[i]){ droneOff(i); droneOn(i); }
+  }
+}
+
+/* =========================================================================
+   KIT — un son par doigt, sur chaque main
+   ========================================================================= */
+const FINGERS = [
+  { name:'POUCE',  tip:4,  mcp:2  },
+  { name:'INDEX',  tip:8,  mcp:5  },
+  { name:'MAJEUR', tip:12, mcp:9  },
+  { name:'ANNUL',  tip:16, mcp:13 },
+  { name:'AURIC',  tip:20, mcp:17 },
+];
+const KITS = {
+  L: [ { v:'kick', l:'KICK' }, { v:'hat',    l:'HAT' },   { v:'clap',  l:'CLAP' },  { v:'rim', l:'RIM' }, { v:'ohat', l:'OPEN' } ],
+  R: [ { v:'sub',  l:'808'  }, { v:'shaker', l:'SHAKER'}, { v:'snare', l:'SNARE'}, { v:'tom', l:'TOM' }, { v:'cow',  l:'COW'  } ],
+};
+
+/* =========================================================================
+   DÉTECTION DE FRAPPE
+   Pour chaque doigt on mesure l'extension c = |bout - base| / taille de main.
+   Cette grandeur est invariante au déplacement et à la taille de la main :
+   seule l'articulation du doigt la fait varier. Une chute rapide de c = une
+   flexion vive = une frappe. On normalise par le maximum observé, ce qui
+   calibre tout seul chaque doigt de chaque utilisateur.
+   ========================================================================= */
+const FIRE_RATE = 2.3;     // vitesse de flexion déclenchante (unités/s)
+const DOWN      = 0.74;    // flexion à atteindre avant de pouvoir réarmer
+const REARM     = 0.84;    // extension à retrouver pour réarmer
+const MIN_GAP   = 80;      // ms entre deux frappes d'un même doigt
+
+function newFingerState(){
+  return { cMax:0, nPrev:1, warm:0, armed:true, below:false, last:0, flash:0, hit:0 };
+}
+const gest = { L: FINGERS.map(newFingerState), R: FINGERS.map(newFingerState) };
+function resetHand(key){ gest[key] = FINGERS.map(newFingerState); }
+
+let gridT0 = 0;
+function hitTime(){
+  if (!state.quantize) return ac.currentTime + 0.012;
+  const step = beatDur() / 4;                       // double-croche
+  const el = ac.currentTime - gridT0;
+  return gridT0 + Math.ceil((el + 0.02) / step) * step;
+}
+function strike(key, fi, vel){
+  const k = KITS[key][fi];
+  const fn = PERC[k.v];
+  if (!fn) return;
+  fn(hitTime(), 0.55 + vel * 0.45);
+  gest[key][fi].flash = 1;
+  gest[key][fi].hit++;
+}
+
+/* analyse d'une main : met à jour l'état des 5 doigts et déclenche */
+function analyseHand(key, pts, dt){
+  const S = Math.hypot(pts[0][0]-pts[9][0], pts[0][1]-pts[9][1]);
+  if (S < 8) return;                                 // main trop petite / bruitée
+  const st = gest[key];
+  for (let i = 0; i < 5; i++){
+    const f = FINGERS[i], s = st[i];
+    const c = Math.hypot(pts[f.tip][0]-pts[f.mcp][0], pts[f.tip][1]-pts[f.mcp][1]) / S;
+    s.cMax = s.warm === 0 ? c : Math.max(s.cMax * 0.9997, c);
+    const n = c / Math.max(s.cMax, 1e-4);
+    if (s.warm < 4){ s.warm++; s.nPrev = n; continue; }
+
+    const dn = (n - s.nPrev) / Math.max(dt, 0.001);
+    const now = performance.now();
+    if (s.armed && dn < -FIRE_RATE && now - s.last > MIN_GAP){
+      s.armed = false;
+      s.below = false;
+      s.last = now;
+      strike(key, i, clamp((-dn - FIRE_RATE) / 4.5, 0, 1));
+    } else if (!s.armed){
+      if (n < DOWN) s.below = true;                   // le doigt est bien replié
+      if (s.below && n > REARM) s.armed = true;       // et de nouveau tendu
+    }
+    s.nPrev = n;
+  }
+}
+
+/* =========================================================================
+   CAMÉRA + TRACKING
+   ========================================================================= */
+const video = $('#cam'), canvas = $('#fx'), ctx = canvas.getContext('2d'), stage = $('#stage');
+
+const BONES = [
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [9,10],[10,11],[11,12],
+  [13,14],[14,15],[15,16],
+  [0,17],[17,18],[18,19],[19,20],
+  [5,9],[9,13],[13,17],
+];
+/* à quel doigt appartient chaque os (pour l'éclair de frappe) */
+const BONE_FINGER = BONES.map(([a,b]) => {
+  for (let i = 0; i < 5; i++){
+    const base = [1,5,9,13,17][i];
+    if (a >= base && a <= base+3 && b >= base && b <= base+3) return i;
+  }
+  return -1;
+});
+
+let handLandmarker = null, camReady = false, trackReady = false;
+let lastVideoTime = -1;
+let hands = [];                 // [{ key, pts }]
+let stageW = 0, stageH = 0, dpr = 1;
+let lastSeen = 0;
+
+function resize(){
+  const r = stage.getBoundingClientRect();
+  stageW = r.width; stageH = r.height;
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(stageW*dpr); canvas.height = Math.round(stageH*dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 350));
+
+/* normalisé -> pixels, en miroir, en tenant compte du recadrage cover */
+function mapPt(lx, ly){
+  const vw = video.videoWidth || 640, vh = video.videoHeight || 480;
+  const s = Math.max(stageW/vw, stageH/vh);
+  const dw = vw*s, dh = vh*s;
+  return [ (stageW-dw)/2 + (1-lx)*dw, (stageH-dh)/2 + ly*dh ];
+}
+
+async function initCamera(){
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: { facingMode:'user', width:{ideal:960}, height:{ideal:720}, frameRate:{ideal:30} },
+  });
+  video.srcObject = stream;
+  await video.play();
+  camReady = true;
+  resize();
+}
+const CDNS = [
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14',
+  'https://unpkg.com/@mediapipe/tasks-vision@0.10.14',
+];
+async function initHands(){
+  let mod = null, base = null, err = null;
+  for (const c of CDNS){
+    try { mod = await import(c + '/vision_bundle.mjs'); base = c; break; }
+    catch(e){ err = e; }
+  }
+  if (!mod) throw err || new Error('CDN injoignable');
+  const vision = await mod.FilesetResolver.forVisionTasks(base + '/wasm');
+  handLandmarker = await mod.HandLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+      delegate: 'GPU',
+    },
+    runningMode: 'VIDEO',
+    numHands: 2,
+    minHandDetectionConfidence: 0.5,
+    minHandPresenceConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  });
+  trackReady = true;
+}
+
+/* MediaPipe suppose l'image déjà en miroir (mode selfie) ; notre flux brut ne
+   l'est pas, le label doit donc être inversé pour désigner la vraie main. */
+function handKey(cat, used){
+  let k = (cat === 'Left') ? 'R' : 'L';
+  if (used.has(k)) k = (k === 'L') ? 'R' : 'L';
+  return k;
+}
+
+function readHands(nowMs){
+  if (!handLandmarker || !camReady || video.readyState < 2) return;
+  if (video.currentTime === lastVideoTime) return;
+  lastVideoTime = video.currentTime;
+  let res = null;
+  try { res = handLandmarker.detectForVideo(video, nowMs); } catch(e){ return; }
+  const out = [], used = new Set();
+  if (res && res.landmarks){
+    for (let h = 0; h < res.landmarks.length; h++){
+      const cat = (res.handednesses && res.handednesses[h] && res.handednesses[h][0])
+        ? res.handednesses[h][0].categoryName : (h === 0 ? 'Left' : 'Right');
+      const key = handKey(cat, used);
+      used.add(key);
+      out.push({ key, pts: res.landmarks[h].map((l) => mapPt(l.x, l.y)) });
+    }
+  }
+  // réinitialise l'état des mains qui viennent de disparaître
+  for (const k of ['L','R']) if (!used.has(k) && gest[k][0].warm > 0) resetHand(k);
+  hands = out;
+  if (out.length) lastSeen = nowMs;
+}
+
+/* =========================================================================
+   RENDU — squelette seul
+   ========================================================================= */
+function drawHands(dt){
+  ctx.clearRect(0, 0, stageW, stageH);
+  if (!hands.length) return;
+  ctx.save();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+  for (const h of hands){
+    const pts = h.pts, st = gest[h.key], kit = KITS[h.key];
+    for (const s of st) s.flash = Math.max(0, s.flash - dt * 3.4);
+
+    // os
+    ctx.shadowColor = 'rgba(255,255,255,.6)';
+    for (let b = 0; b < BONES.length; b++){
+      const fi = BONE_FINGER[b];
+      const fl = fi >= 0 ? st[fi].flash : 0;
+      const [a, c] = BONES[b];
+      ctx.beginPath();
+      ctx.moveTo(pts[a][0], pts[a][1]);
+      ctx.lineTo(pts[c][0], pts[c][1]);
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.42 + fl*0.58).toFixed(3) + ')';
+      ctx.lineWidth = 1.7 + fl * 2.4;
+      ctx.shadowBlur = 7 + fl * 16;
+      ctx.stroke();
+    }
+
+    // articulations
+    ctx.shadowBlur = 6;
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < pts.length; i++){
+      ctx.beginPath();
+      ctx.arc(pts[i][0], pts[i][1], 2.1, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // bouts de doigts, onde de frappe et étiquette du son
+    ctx.font = '600 9px ui-monospace, SF Mono, Menlo, monospace';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < 5; i++){
+      const f = FINGERS[i], p = pts[f.tip], fl = st[i].flash;
+
+      ctx.beginPath();
+      ctx.arc(p[0], p[1], 3.4 + fl*2.2, 0, Math.PI*2);
+      ctx.fillStyle = '#fff'; ctx.shadowBlur = 8 + fl*18; ctx.fill();
+
+      if (fl > 0.02){                                  // onde de choc
+        ctx.beginPath();
+        ctx.arc(p[0], p[1], 7 + (1-fl)*26, 0, Math.PI*2);
+        ctx.strokeStyle = 'rgba(255,255,255,' + (fl*0.75).toFixed(3) + ')';
+        ctx.lineWidth = 1.5; ctx.shadowBlur = 14;
+        ctx.stroke();
+      }
+
+      // étiquette décalée vers l'extérieur de la main
+      const dx = p[0]-pts[0][0], dy = p[1]-pts[0][1];
+      const m = Math.hypot(dx, dy) || 1;
+      const lx = p[0] + dx/m*17, ly = p[1] + dy/m*17;
+      ctx.textAlign = dx < 0 ? 'right' : 'left';
+      ctx.shadowBlur = 5;
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.62 + fl*0.38).toFixed(3) + ')';
+      ctx.fillText(kit[i].l, lx, ly);
+    }
+  }
+  ctx.restore();
+}
+
+/* =========================================================================
+   INTERFACE
+   ========================================================================= */
+const statusEl = $('#status'), legendEl = $('#legend'), touchkit = $('#touchkit');
+let sayTimer = null;
+function say(msg, sticky){
+  statusEl.textContent = msg;
+  statusEl.style.opacity = '1';
+  clearTimeout(sayTimer);
+  if (!sticky) sayTimer = setTimeout(() => { statusEl.style.opacity = '0'; }, 2100);
+}
+
+/* --- boutons de nappes -------------------------------------------------- */
+const napEls = [];
+DRONE_DEFS.forEach((def, i) => {
+  const b = document.createElement('button');
+  b.className = 'nap';
+  b.innerHTML = def.name + '<span class="s">' + def.sub + '</span>';
+  b.addEventListener('pointerdown', (e) => { e.preventDefault(); toggleDrone(i); });
+  (i < 3 ? $('#rowBass') : $('#rowSyn')).appendChild(b);
+  napEls.push(b);
+});
+function toggleDrone(i){
+  if (drones[i]){ droneOff(i); napEls[i].classList.remove('on'); }
+  else { droneOn(i); napEls[i].classList.add('on'); }
+}
+
+/* --- légende du kit (visible tant qu'aucune main n'est vue) -------------- */
+(function buildLegend(){
+  const col = (title, kit) => {
+    let h = '<div class="col"><div class="ttl">' + title + '</div>';
+    for (let i = 0; i < 5; i++){
+      h += '<div class="row"><span>' + FINGERS[i].name + '</span><b>' + kit[i].l + '</b></div>';
+    }
+    return h + '</div>';
+  };
+  legendEl.innerHTML = col('MAIN GAUCHE', KITS.L) + col('MAIN DROITE', KITS.R);
+})();
+
+/* --- repli tactile ------------------------------------------------------ */
+(function buildTouchKit(){
+  for (const key of ['L','R']){
+    for (let i = 0; i < 5; i++){
+      const b = document.createElement('div');
+      b.className = 'tk';
+      b.textContent = KITS[key][i].l;
+      b.addEventListener('pointerdown', (e) => { e.preventDefault(); strike(key, i, 0.8); });
+      touchkit.appendChild(b);
+    }
+  }
+})();
+
+/* --- potards ------------------------------------------------------------ */
+function makeKnob(sel, opts){
+  const root = $(sel), dial = root.querySelector('.kdial'), num = root.querySelector('.knum');
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg'); svg.setAttribute('viewBox', '0 0 48 48');
+  const bgA = document.createElementNS(ns, 'path'); bgA.setAttribute('class','karc');
+  const vA  = document.createElementNS(ns, 'path'); vA.setAttribute('class','kval');
+  svg.appendChild(bgA); svg.appendChild(vA); dial.appendChild(svg);
+  const ptr = document.createElement('div'); ptr.className = 'kptr'; dial.appendChild(ptr);
+
+  const R = 20, CX = 24, CY = 24, A0 = -225, A1 = 45;
+  const pt = (a) => { const r = a*Math.PI/180; return [CX + R*Math.cos(r), CY + R*Math.sin(r)]; };
+  const arc = (f, t) => {
+    const [x0,y0] = pt(f), [x1,y1] = pt(t);
+    return 'M' + x0.toFixed(2) + ' ' + y0.toFixed(2) + ' A' + R + ' ' + R + ' 0 ' +
+           (Math.abs(t-f) > 180 ? 1 : 0) + ' 1 ' + x1.toFixed(2) + ' ' + y1.toFixed(2);
+  };
+  bgA.setAttribute('d', arc(A0, A1));
+
+  let value = opts.value;
+  function render(){
+    const n = (value - opts.min) / (opts.max - opts.min);
+    const ang = lerp(A0, A1, n);
+    if (opts.bipolar){
+      const c = lerp(A0, A1, (0 - opts.min)/(opts.max - opts.min));
+      vA.setAttribute('d', Math.abs(ang-c) < 0.5 ? '' : arc(Math.min(c,ang), Math.max(c,ang)));
+    } else {
+      vA.setAttribute('d', n < 0.005 ? '' : arc(A0, ang));
+    }
+    ptr.style.transform = 'translate(-50%,-100%) rotate(' + (ang+90) + 'deg)';
+    num.textContent = opts.fmt(value);
+    opts.onchange(value);
+  }
+  let drag = false, sy = 0, sv = 0;
+  dial.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); drag = true; sy = e.clientY; sv = value; dial.setPointerCapture(e.pointerId);
+  });
+  dial.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    e.preventDefault();
+    let v = sv + (sy - e.clientY) * (opts.max - opts.min) / 170;
+    if (opts.step) v = Math.round(v/opts.step)*opts.step;
+    if (opts.bipolar && Math.abs(v) < (opts.max-opts.min)*0.045) v = 0;
+    value = clamp(v, opts.min, opts.max);
+    render();
+  });
+  const end = (e) => { drag = false; try { dial.releasePointerCapture(e.pointerId); } catch(err){} };
+  dial.addEventListener('pointerup', end);
+  dial.addEventListener('pointercancel', end);
+  dial.addEventListener('dblclick', () => { value = opts.value; render(); });
+  render();
+}
+makeKnob('#k-delay', { min:0, max:1, value:0, fmt:(v)=>Math.round(v*100),
+  onchange:(v)=>{ state.delay = v; applyFx(); } });
+makeKnob('#k-drive', { min:0, max:1, value:0, fmt:(v)=>Math.round(v*100),
+  onchange:(v)=>{ state.drive = v; applyFx(); } });
+makeKnob('#k-pitch', { min:-12, max:12, value:0, step:1, bipolar:true,
+  fmt:(v)=>(v>0?'+':'')+Math.round(v),
+  onchange:(v)=>{ state.transpose = v; retuneAll(); } });
+
+/* --- BPM ---------------------------------------------------------------- */
+const bpmEl = $('#bpm');
+function setBpm(v){
+  state.bpm = clamp(Math.round(v), 88, 152);
+  bpmEl.value = state.bpm;
+  bpmEl.style.setProperty('--p', ((state.bpm-88)/64*100) + '%');
+  $('#bpmread').textContent = state.bpm;
+  applyFx();
+}
+bpmEl.addEventListener('input', () => setBpm(+bpmEl.value));
+setBpm(118);
+
+let taps = [];
+$('#tap').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  const now = performance.now();
+  taps = taps.filter((t) => now - t < 2200);
+  taps.push(now);
+  if (taps.length >= 3){
+    let s = 0;
+    for (let i = 1; i < taps.length; i++) s += taps[i] - taps[i-1];
+    setBpm(60000 / (s / (taps.length-1)));
+    if (ac) gridT0 = ac.currentTime;
+  }
+});
+
+/* --- boutons ------------------------------------------------------------ */
+function bump(el){ el.classList.add('hit'); setTimeout(() => el.classList.remove('hit'), 110); }
+
+$('#vox').addEventListener('pointerdown', (e) => {
+  e.preventDefault(); bump(e.currentTarget);
+  if (ac) playVox(ac.currentTime + 0.02);
+});
+const quantBtn = $('#quant');
+quantBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  state.quantize = !state.quantize;
+  quantBtn.classList.toggle('on', state.quantize);
+  if (ac) gridT0 = ac.currentTime;
+  say(state.quantize ? 'FRAPPES CALÉES SUR LA GRILLE' : 'FRAPPES LIBRES');
+});
+$('#allOff').addEventListener('pointerdown', (e) => {
+  e.preventDefault(); bump(e.currentTarget);
+  for (let i = 0; i < 6; i++) if (drones[i]){ droneOff(i); napEls[i].classList.remove('on'); }
+  say('NAPPES COUPÉES');
+});
+$('#rnd').addEventListener('pointerdown', (e) => {
+  e.preventDefault(); bump(e.currentTarget);
+  for (let i = 0; i < 6; i++) droneParams[i] = DRONE_DEFS[i].roll();
+  state.root  = pick([0,-2,-4,3,5,-5,2]);
+  state.scale = pick([[0,3,5,7,10],[0,2,3,7,8],[0,1,5,7,8],[0,3,5,6,7,10]]);
+  voxP = { pitch: rnd(82,132), bits: pick([5,7,9,13]), speed: rnd(0.85,1.15), level: 0.6 };
+  rebuildActive();
+  say('NAPPES RANDOMISÉES');
+});
+
+/* --- grille visuelle de 16 doubles-croches ------------------------------ */
+const gq = [];
+for (let i = 0; i < 16; i++){
+  const d = document.createElement('div');
+  d.className = 'gq' + (i % 4 === 0 ? ' beat' : '');
+  $('#grid16').appendChild(d); gq.push(d);
+}
+let lastQ = -1;
+function drawGrid(){
+  if (!ac) return;
+  const step = beatDur() / 4;
+  const i = Math.floor(((ac.currentTime - gridT0) / step) % 16 + 16) % 16;
+  if (i !== lastQ){
+    if (lastQ >= 0) gq[lastQ].classList.remove('on');
+    gq[i].classList.add('on');
+    lastQ = i;
+  }
+}
+
+/* =========================================================================
+   BOUCLE
+   ========================================================================= */
+let lastFrame = performance.now();
+function loop(){
+  requestAnimationFrame(loop);
+  const now = performance.now();
+  const dt = Math.min((now - lastFrame)/1000, 0.1);
+  lastFrame = now;
+
+  readHands(now);
+  for (const h of hands) analyseHand(h.key, h.pts, dt);
+  drawHands(dt);
+  drawGrid();
+
+  // la légende s'efface dès qu'une main est vue
+  if (trackReady) legendEl.style.opacity = (now - lastSeen < 1200) ? '0' : '1';
+}
+
+/* =========================================================================
+   DÉMARRAGE
+   ========================================================================= */
+const boot = $('#boot'), bootnote = $('#bootnote');
+$('#startbtn').addEventListener('click', async () => {
+  $('#startbtn').disabled = true;
+  bootnote.textContent = 'INITIALISATION AUDIO…';
+  try {
+    buildAudio();
+    if (ac.state === 'suspended') await ac.resume();
+  } catch(e){
+    bootnote.textContent = 'AUDIO INDISPONIBLE : ' + e.message;
+    $('#startbtn').disabled = false;
+    return;
+  }
+  gridT0 = ac.currentTime;
+  boot.classList.add('hidden');
+  resize();
+  loop();
+
+  toggleDrone(0);                                   // une basse pour commencer
+  say('AUTORISE LA CAMÉRA…', true);
+
+  try {
+    await initCamera();
+  } catch(e){
+    console.warn('camera', e);
+    say('CAMÉRA REFUSÉE — KIT TACTILE', true);
+    stage.style.background = 'linear-gradient(160deg,#141619,#0b0c0e)';
+    legendEl.style.opacity = '0';
+    touchkit.classList.add('show');
+    return;
+  }
+  say('CHARGEMENT DU MODÈLE…', true);
+  try {
+    await initHands();
+    say('PLIE UN DOIGT POUR FRAPPER');
+  } catch(e){
+    console.warn('handtracking', e);
+    say('TRACKING INDISPONIBLE — KIT TACTILE', true);
+    legendEl.style.opacity = '0';
+    touchkit.classList.add('show');
+  }
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (!ac) return;
+  if (document.hidden) ac.suspend(); else ac.resume();
+});
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive:false });
+
+/* poignée de debug (inspecteur web Safari) */
+window.TR9 = {
+  state, bus, gest, drones, droneParams, PERC, strike, toggleDrone,
+  get ac(){ return ac; },
+  get hands(){ return hands; },
+  set hands(h){ hands = h; },
+};
+
+resize();
+</script>
+</body>
+</html>
