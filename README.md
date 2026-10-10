@@ -38,13 +38,18 @@ plus de repère de gravité et peut faire pivoter l'interface en pleine partie.
 
 1. Ouvrir la page en **HTTPS** (voir « Mise en ligne »), appuyer sur **JOUER**,
    autoriser la caméra. Le modèle de suivi se charge une fois (~8 Mo, mis en cache).
-2. Chacun tend l'index au-dessus de l'écran, de son côté. Un anneau lumineux apparaît :
-   c'est ton palet de frappe. Anneau simple pour le joueur 1, double pour le joueur 2.
+2. Chacun tend l'index au-dessus de l'écran, de son côté. **Le squelette de ta main
+   s'affiche sur le terrain**, avec le repère `J1` ou `J2` qui dit à quel joueur le jeu
+   l'attribue, et un anneau lumineux : ton palet de frappe. Anneau simple pour le
+   joueur 1, double pour le joueur 2.
 3. Déplace ton doigt pour frapper. **La vitesse du geste se transmet au palet** —
    un coup sec envoie loin, un contact mou amortit.
 4. Comme au vrai air hockey, **chaque palet reste dans son camp** : impossible de
    franchir la ligne médiane.
-5. Après chaque but, le palet est engagé vers celui qui vient d'encaisser.
+5. Si ta main franchit la médiane, ton palet reste bloqué sur la ligne et **une laisse
+   en pointillés** relie ton doigt à ton palet : c'est le signe que tu débordes, pas
+   que le suivi a lâché.
+6. Après chaque but, le palet est engagé vers celui qui vient d'encaisser.
 
 Si un anneau passe en pointillés et que **DOIGT PERDU** s'affiche, la caméra ne voit
 plus ce doigt : remonte la main vers le centre du champ.
@@ -68,10 +73,20 @@ où relance une partie.
 - Le centre du champ de la caméra est étiré sur tout le terrain, avec **12 % de marge
   ignorée sur les bords**, là où la détection décroche. Le geste se fait donc en l'air,
   dans un volume au-dessus du téléphone, et non en vis-à-vis exact de l'écran.
-- **Affectation des joueurs par position** : le doigt le plus haut dans l'image pilote
-  le camp du haut, le plus bas celui du bas. Chaque palet est ensuite borné à son camp,
-  donc même si les deux joueurs mettent la main du même côté, personne ne prend le
-  contrôle du palet adverse.
+- **Affectation persistante des mains.** Chaque main reste accrochée au palet qu'elle
+  pilotait : on l'apparie à l'endroit où ce doigt se trouvait à l'image précédente, et
+  non à sa position absolue sur le terrain. C'est indispensable — une affectation
+  refaite à chaque image (« le doigt le plus haut au joueur du haut ») intervertit les
+  deux joueurs dès qu'un doigt approche la médiane ou qu'une main cligne.
+  - L'ancre est la dernière position du **doigt**, jamais celle du palet : le palet
+    étant bloqué à la médiane quand la main déborde, il s'éloignerait de sa propre
+    main au point de sembler appartenir à l'adversaire.
+  - Le **camp** ne départage que lorsque la continuité est rompue — main perdue puis
+    réapparue ailleurs. Tant que les deux doigts sont près de là où ils étaient, la
+    continuité seule décide, sans quoi deux joueurs chevauchant la médiane en même
+    temps se feraient intervertir.
+  - Chaque palet reste ensuite borné à son camp : personne ne peut prendre le contrôle
+    du palet adverse ni franchir la ligne.
 - Position lissée à 55 % par image, et la vitesse du palet de frappe est calculée sur
   cette position lissée : c'est elle qui est transmise au palet lors du choc.
 
@@ -113,6 +128,8 @@ En local : `python3 -m http.server 8000`.
 - Le suivi tourne à la cadence de la caméra (~30 images/s), ce qui pose un plancher
   d'environ 30 ms entre le geste et le palet. C'est jouable, mais ce n'est pas la
   réactivité d'un écran tactile.
-- Testé en navigateur avec des doigts simulés (affectation, bornage des camps, frappe,
-  buts, rebonds, victoire) ; pas encore avec deux vraies mains au-dessus d'un iPhone
-  posé sur une table.
+- Testé en navigateur avec des mains simulées : croisement des deux doigts au-dessus
+  l'un de l'autre, perte puis retour d'une main, trois secondes de va-et-vient de part
+  et d'autre de la médiane (zéro interversion), plus le bornage des camps, la frappe,
+  les buts, les rebonds et la victoire. Pas encore avec deux vraies mains au-dessus
+  d'un iPhone posé sur une table.
