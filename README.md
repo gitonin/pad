@@ -8,7 +8,12 @@ deux doigts et chacun pilote son palet de frappe. Premier à **7 buts**.
 Une seule page autonome, aucune dépendance à installer, aucun échantillon : le son est
 synthétisé en Web Audio.
 
-> Le séquenceur développé précédemment reste dans le dépôt, sous **`drums.html`**.
+> Le séquenceur développé précédemment reste dans le dépôt, sous **`drums.html`** :
+> nappes tenues aux boutons, percussions jouées aux doigts. Une frappe y est un
+> **creux** — de combien le doigt s'est raccourci par rapport à 100 ms plus tôt, en
+> fraction de sa propre longueur — auquel on retranche la médiane des cinq doigts,
+> si bien qu'un mouvement d'ensemble de la main s'annule et qu'un doigt seul ressort.
+> Le seuil se règle avec `DET.DROP`, en haut de la section « DÉTECTION DE FRAPPE ».
 
 ---
 
