@@ -10,15 +10,17 @@ synthétisé en Web Audio.
 
 > **`drums.html`** — l'autre expérience du dépôt : *FILAMENTS*. Caméra en noir et
 > blanc, squelette des mains en fil de fer blanc, et une toile de rubans roses et
-> verts qui vibrent entre les doigts et le poignet. **Rapprocher deux bouts de doigts
-> ferme un circuit** : un fil s'allume, crépite, et une voix de synthé naît. Le couple
-> de doigts choisit la note — pouce contre pouce donne la fondamentale, auriculaire
-> contre auriculaire le haut de la tessiture — et la distance ouvre le timbre en
-> continu. Sur une même main seul le pouce fait contact, parce que deux doigts voisins
-> sont déjà collés au repos ; entre les deux mains, les vingt-cinq couples comptent.
-> Cinq styles de synthé au bouton **SYNTHÉ**, quatre rythmes techno / house avec
-> basse, un **RND BEAT**, une **BASSE LONGUE** tenue, les trois potards d'effet et la
-> voix digitalisée.
+> verts qui vibrent entre les doigts et le poignet. **Rapprocher un doigt de la main
+> gauche d'un doigt de la main droite ferme un circuit** : un fil s'allume, crépite,
+> et une voix de synthé naît. Il faut les deux mains — rien ne se passe entre deux
+> doigts d'une même main. Chacun des 25 couples a sa propre identité : note, octave,
+> forme d'onde, désaccord, résonance, couleur, nombre de brins et vitesse
+> d'ondulation en découlent, si bien que deux fils ne se ressemblent jamais. La
+> distance ouvre le timbre en continu. Cinq synthés d'inspiration Roland au bouton
+> **SYNTHÉ** (Juno à impulsion et sous-octave, supersaw, SH-101, TB-303 très
+> résonant, PWM), tous passés dans un chorus d'ensemble ; quatre rythmes techno /
+> house avec basse, un **RND BEAT**, une **BASSE** longue tirée au sort parmi six
+> patchs à chaque activation, les trois potards d'effet et la voix digitalisée.
 
 ---
 

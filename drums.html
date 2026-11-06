@@ -216,8 +216,8 @@ input[type=range]::-moz-range-thumb{width:15px;height:15px;border:none;border-ra
     <div class="row" id="rowBeat"></div>
     <div class="row">
       <button class="btn" id="rndBeat">RND BEAT</button>
-      <button class="btn tog" id="bassBtn">BASSE LONGUE</button>
-      <button class="btn" id="synthBtn">SYNTHÉ · <b id="synthName">VERRE</b></button>
+      <button class="btn tog" id="bassBtn">BASSE · <b id="bassName">—</b></button>
+      <button class="btn" id="synthBtn">SYNTHÉ · <b id="synthName">JUNO</b></button>
     </div>
     <div class="row">
       <button class="btn" id="voxBtn">I WANNA DANCE</button>
@@ -348,7 +348,25 @@ function buildAudio(){
 
   bus.master = ac.createGain(); bus.master.gain.value = 0.0001;
 
-  for (const b of [bus.perc, bus.bass, bus.syn]) b.connect(bus.mix);
+  // Chorus d'ensemble sur le bus synthé : deux lignes à retard court modulées
+  // en opposition de phase. C'est l'ingrédient qui donne aux Roland de cette
+  // époque leur largeur ; sans lui les voix restent sèches et minces.
+  bus.chorus = ac.createGain();
+  const clfo = ac.createOscillator(); clfo.frequency.value = 0.55;
+  const clg  = ac.createGain(); clg.gain.value = 0.0021;
+  const cinv = ac.createGain(); cinv.gain.value = -1;
+  const cd1 = ac.createDelay(0.05); cd1.delayTime.value = 0.0085;
+  const cd2 = ac.createDelay(0.05); cd2.delayTime.value = 0.0119;
+  clfo.connect(clg); clg.connect(cd1.delayTime); clg.connect(cinv); cinv.connect(cd2.delayTime);
+  const cg1 = ac.createGain(); cg1.gain.value = 0.42;
+  const cg2 = ac.createGain(); cg2.gain.value = 0.42;
+  const cdry= ac.createGain(); cdry.gain.value = 0.72;
+  bus.syn.connect(cd1); bus.syn.connect(cd2); bus.syn.connect(cdry);
+  cd1.connect(cg1); cd2.connect(cg2);
+  cg1.connect(bus.chorus); cg2.connect(bus.chorus); cdry.connect(bus.chorus);
+  clfo.start();
+
+  for (const b of [bus.perc, bus.bass, bus.chorus]) b.connect(bus.mix);
   bus.mix.connect(bus.preDrive);
   bus.preDrive.connect(bus.shaper);
   bus.shaper.connect(bus.postDrive);
@@ -494,30 +512,55 @@ function bassHit(t, deg, dur, accent, slideFrom){
   o1.start(t); o2.start(t); stopAt([o1,o2], t + dur + 0.1);
 }
 
-/* --- basse longue tenue -------------------------------------------------- */
-let longBassNodes = null;
+/* Passe-bas 24 dB/octave : deux biquads en cascade, la résonance sur le
+   premier. Un seul biquad fait 12 dB et sonne trop ouvert pour ce répertoire. */
+function lp24(q){
+  const a = ac.createBiquadFilter(), b = ac.createBiquadFilter();
+  a.type = 'lowpass'; b.type = 'lowpass';
+  a.Q.value = q; b.Q.value = 0.7;
+  a.connect(b);
+  return { in:a, out:b, set(f, t){
+    a.frequency.setTargetAtTime(f, t, 0.045);
+    b.frequency.setTargetAtTime(f*1.05, t, 0.045);
+  } };
+}
+
+/* --- basse longue tenue, tirée au sort ---------------------------------- */
+const BASSES = [
+  { name:'SUB',     wave:'sine',     cut:190, q:3,  det:6,  lfo:0.07, sub:0.95, oct:0  },
+  { name:'JUNO',    wave:'sawtooth', cut:250, q:6,  det:11, lfo:0.11, sub:0.55, oct:0  },
+  { name:'101',     wave:'square',   cut:300, q:8,  det:5,  lfo:0.09, sub:0.65, oct:0  },
+  { name:'PROFOND', wave:'sawtooth', cut:170, q:4,  det:3,  lfo:0.05, sub:0.85, oct:-1 },
+  { name:'ACIDE',   wave:'sawtooth', cut:230, q:13, det:0,  lfo:0.17, sub:0.40, oct:0  },
+  { name:'VERRE',   wave:'triangle', cut:320, q:5,  det:14, lfo:0.13, sub:0.50, oct:0  },
+];
+let longBassNodes = null, longBassName = '—';
+
 function longBassOn(){
   if (longBassNodes) return;
+  const b = pick(BASSES);
+  longBassName = b.name;
   const t = ac.currentTime;
   const out = ac.createGain(); out.gain.value = 0.0001; out.connect(bus.bass);
-  const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = 220; lp.Q.value = 4;
-  lp.connect(out);
+  const f = lp24(b.q);
+  f.out.connect(out);
+  f.set(b.cut, t);
   const nodes = [], voices = [];
   const add = (type, semi, oct, gain, det) => {
-    const o = ac.createOscillator(); o.type = type; o.detune.value = det||0;
+    const o = ac.createOscillator(); o.type = type; o.detune.value = det || 0;
     o.frequency.value = hz(semi, oct);
     const g = ac.createGain(); g.gain.value = gain;
-    o.connect(g); g.connect(lp);
+    o.connect(g); g.connect(f.in);
     nodes.push(o); voices.push({ osc:o, semi, oct });
   };
-  add('sine', 0, 0, 0.9, 0);
-  add('sine', 0, 0, 0.4, 7);
-  add('triangle', 0, 1, 0.14, 0);
-  const lfo = ac.createOscillator(); lfo.frequency.value = 0.09;
-  const lg  = ac.createGain(); lg.gain.value = 140;
-  lfo.connect(lg); lg.connect(lp.frequency); nodes.push(lfo);
+  add(b.wave, 0, b.oct, 0.55, -b.det);
+  add(b.wave, 0, b.oct, 0.55,  b.det);
+  add('sine', 0, b.oct, b.sub, 0);
+  const lfo = ac.createOscillator(); lfo.frequency.value = b.lfo;
+  const lg  = ac.createGain(); lg.gain.value = b.cut * 0.55;
+  lfo.connect(lg); lg.connect(f.in.frequency); nodes.push(lfo);
   for (const n of nodes) n.start(t);
-  out.gain.exponentialRampToValueAtTime(0.55, t + 1.6);
+  out.gain.exponentialRampToValueAtTime(0.5, t + 1.6);
   longBassNodes = { out, nodes, voices };
 }
 function longBassOff(){
@@ -644,92 +687,84 @@ function startClock(){
    Une voix tenue par connexion. `set(p)` suit la proximité : p = 0 au bord de
    la portée, p = 1 doigts joints. Le timbre dépend du style choisi.
    ========================================================================= */
-const SYNTHS = ['VERRE', 'LAME', 'SOUFFLE', 'VOYELLE', 'CORDE'];
+const SYNTHS = ['JUNO', 'SUPER', 'SH-101', 'TB-303', 'PWM'];
 
-function makeVoice(style, f){
+/* Onde carrée à largeur réglable, par sa série de Fourier. Web Audio n'offre
+   pas d'oscillateur à impulsion ; c'est pourtant la base du son Juno. */
+const pwCache = new Map();
+function pulseWave(width){
+  const key = Math.round(width*50);
+  if (pwCache.has(key)) return pwCache.get(key);
+  const n = 40, real = new Float32Array(n), imag = new Float32Array(n);
+  for (let k = 1; k < n; k++) imag[k] = (2/(k*Math.PI)) * Math.sin(k*Math.PI*width);
+  const w = ac.createPeriodicWave(real, imag);
+  pwCache.set(key, w);
+  return w;
+}
+function makeVoice(style, f, v){
   const t = ac.currentTime;
   const out = ac.createGain(); out.gain.value = 0.0001; out.connect(bus.syn);
   const nodes = [];
   const osc = (type, freq, det) => {
-    const o = ac.createOscillator(); o.type = type;
+    const o = ac.createOscillator();
+    if (typeof type === 'string') o.type = type; else o.setPeriodicWave(type);
     o.frequency.value = freq; o.detune.value = det || 0;
     nodes.push(o); return o;
   };
-  // léger frémissement d'amplitude : l'énergie n'est jamais tout à fait stable
-  const shimmer = ac.createOscillator(); shimmer.type = 'sine';
-  shimmer.frequency.value = rnd(4.5, 9.5);
-  const shg = ac.createGain(); shg.gain.value = 0.09;
-  shimmer.connect(shg); nodes.push(shimmer);
+  const filt = lp24(style === 3 ? 9 + v.q : v.q);
+  const vca  = ac.createGain(); vca.gain.value = 0.26;
+  filt.out.connect(vca); vca.connect(out);
 
-  let set;
-  if (style === 0){                                   // VERRE — FM cloche
-    const car = osc('sine', f), mod = osc('sine', f*3.01);
-    const mg = ac.createGain(); mg.gain.value = f*0.3;
-    const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=6000;
-    mod.connect(mg); mg.connect(car.frequency);
-    car.connect(lp); lp.connect(out); shg.connect(out.gain);
-    set = (p, tt) => {
-      mg.gain.setTargetAtTime(f*(0.25 + 2.8*p), tt, 0.05);
-      out.gain.setTargetAtTime(0.05 + 0.20*p, tt, 0.06);
-    };
-  } else if (style === 1){                            // LAME — scies résonantes
-    const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=7;
-    for (const d of [-8, 0, 8]) osc('sawtooth', f, d).connect(lp);
-    const vg = ac.createGain(); vg.gain.value = 0.3;
-    lp.connect(vg); vg.connect(out); shg.connect(out.gain);
-    set = (p, tt) => {
-      lp.frequency.setTargetAtTime(280 + 3600*p*p, tt, 0.05);
-      out.gain.setTargetAtTime(0.05 + 0.18*p, tt, 0.06);
-    };
-  } else if (style === 2){                            // SOUFFLE — carré + air
-    const bp = ac.createBiquadFilter(); bp.type='bandpass'; bp.Q.value=3.5;
-    for (const d of [-6, 6]) osc('square', f, d).connect(bp);
-    const n = noiseSrc(); const nbp = ac.createBiquadFilter();
-    nbp.type='bandpass'; nbp.frequency.value = f*4; nbp.Q.value = 1.4;
-    const ng = ac.createGain(); ng.gain.value = 0.3;
-    n.connect(nbp); nbp.connect(ng); ng.connect(out); nodes.push(n);
-    const vg = ac.createGain(); vg.gain.value = 0.22;
-    bp.connect(vg); vg.connect(out); shg.connect(out.gain);
-    set = (p, tt) => {
-      bp.frequency.setTargetAtTime(f*(1 + 3*p), tt, 0.05);
-      ng.gain.setTargetAtTime(0.16*(1-p) + 0.03, tt, 0.06);
-      out.gain.setTargetAtTime(0.05 + 0.17*p, tt, 0.06);
-    };
-  } else if (style === 3){                            // VOYELLE — formants
-    const src = osc('sawtooth', f);
-    const f1 = ac.createBiquadFilter(); f1.type='bandpass'; f1.Q.value=9;
-    const f2 = ac.createBiquadFilter(); f2.type='bandpass'; f2.Q.value=11;
-    const g1 = ac.createGain(); g1.gain.value=0.5;
-    const g2 = ac.createGain(); g2.gain.value=0.3;
-    src.connect(f1); src.connect(f2); f1.connect(g1); f2.connect(g2);
-    g1.connect(out); g2.connect(out); shg.connect(out.gain);
-    set = (p, tt) => {                                // de « ou » fermé vers « a » ouvert
-      f1.frequency.setTargetAtTime(lerp(320, 760, p), tt, 0.07);
-      f2.frequency.setTargetAtTime(lerp(760, 1700, p), tt, 0.07);
-      out.gain.setTargetAtTime(0.06 + 0.24*p, tt, 0.06);
-    };
-  } else {                                            // CORDE — pincé tenu
-    const bp = ac.createBiquadFilter(); bp.type='bandpass'; bp.Q.value=4;
-    osc('triangle', f).connect(bp);
-    const sa = osc('sawtooth', f, 5); const sg = ac.createGain(); sg.gain.value = 0.35;
-    sa.connect(sg); sg.connect(bp);
-    const vib = osc('sine', rnd(4, 6.5));
-    const vg2 = ac.createGain(); vg2.gain.value = f*0.006;
-    vib.connect(vg2);
-    const vg = ac.createGain(); vg.gain.value = 0.3;
-    bp.connect(vg); vg.connect(out); shg.connect(out.gain);
-    set = (p, tt) => {
-      bp.frequency.setTargetAtTime(f*(1.2 + 3.5*p), tt, 0.05);
-      out.gain.setTargetAtTime(0.05 + 0.20*p, tt, 0.06);
-    };
+  // respiration lente du filtre, propre à chaque couple de doigts
+  const flfo = ac.createOscillator(); flfo.frequency.value = v.lfo;
+  const flg  = ac.createGain(); flg.gain.value = 180;
+  flfo.connect(flg); flg.connect(filt.in.frequency); nodes.push(flfo);
+
+  let lo = 300, hi = 4200;
+  if (style === 0){                                  // JUNO — impulsion + sous-octave
+    osc(pulseWave(0.5 - v.pw*0.5), f, -v.det*0.4).connect(filt.in);
+    osc(pulseWave(0.5 - v.pw*0.5), f, v.det*0.6).connect(filt.in);
+    const sub = osc('square', f/2); const sg = ac.createGain(); sg.gain.value = 0.42;
+    sub.connect(sg); sg.connect(filt.in);
+    lo = 340; hi = 4600;
+  } else if (style === 1){                           // SUPER — sept scies
+    for (const d of [-1, -0.62, -0.26, 0, 0.26, 0.62, 1]){
+      const o = osc('sawtooth', f, d*v.det*2.4);
+      const g = ac.createGain(); g.gain.value = d === 0 ? 0.30 : 0.17;
+      o.connect(g); g.connect(filt.in);
+    }
+    lo = 420; hi = 5200;
+  } else if (style === 2){                           // SH-101 — scie + carré + sub
+    osc('sawtooth', f, -v.det*0.5).connect(filt.in);
+    const sq = osc('square', f, v.det*0.5); const qg = ac.createGain(); qg.gain.value = 0.55;
+    sq.connect(qg); qg.connect(filt.in);
+    const sub = osc('sine', f/2); const sg = ac.createGain(); sg.gain.value = 0.6;
+    sub.connect(sg); sg.connect(filt.in);
+    lo = 260; hi = 3800;
+  } else if (style === 3){                           // TB-303 — très résonant
+    osc(v.wave, f).connect(filt.in);
+    const sub = osc('sine', f/2); const sg = ac.createGain(); sg.gain.value = 0.35;
+    sub.connect(sg); sg.connect(filt.in);
+    vca.gain.value = 0.20;
+    lo = 180; hi = 3400;
+  } else {                                           // PWM — deux impulsions qui battent
+    osc(pulseWave(0.30), f, -v.det*0.8).connect(filt.in);
+    osc(pulseWave(0.44), f, v.det*0.8).connect(filt.in);
+    const sub = osc('triangle', f/2); const sg = ac.createGain(); sg.gain.value = 0.3;
+    sub.connect(sg); sg.connect(filt.in);
+    lo = 300; hi = 4400;
   }
 
   for (const n of nodes){ try { n.start(t); } catch(e){} }
+  filt.set(lo, t);
   out.gain.setValueAtTime(0.0001, t);
-  out.gain.exponentialRampToValueAtTime(0.05, t + 0.07);
+  out.gain.exponentialRampToValueAtTime(0.06, t + 0.035);
 
   return {
-    set,
+    set(p, tt){
+      filt.set(lo + (hi - lo) * p * p, tt);
+      out.gain.setTargetAtTime(0.05 + 0.26*p, tt, 0.05);
+    },
     stop(tt){
       out.gain.cancelScheduledValues(tt);
       out.gain.setValueAtTime(Math.max(out.gain.value, 0.0001), tt);
@@ -836,6 +871,9 @@ const PALETTE = [
   ['#2ee8ff','#a855ff','#9ff2ff'],
   ['#a855ff','#ff2e88','#d7b3ff'],
   ['#ffd23c','#ff2e88','#fff0a8'],
+  ['#ff6a1f','#2ee8ff','#ffb07a'],
+  ['#3cff9d','#ff2e88','#a8ffd4'],
+  ['#ff2e88','#ffd23c','#ff9ec9'],
 ];
 
 const video = $('#cam'), canvas = $('#fx'), ctx = canvas.getContext('2d'), stage = $('#stage');
@@ -911,31 +949,44 @@ function readHands(nowMs){
 
 /* =========================================================================
    CONNEXIONS
-   Deux doigts qui se rapprochent ferment un circuit. Entre les deux mains,
-   les 25 couples comptent ; sur une même main, seul le pouce fait contact,
-   parce que deux doigts voisins sont déjà collés au repos et déclencheraient
-   en permanence. Un seuil d'ouverture plus large que celui de fermeture
-   empêche le fil de clignoter quand la distance oscille autour du seuil.
+   Un doigt de la main gauche et un doigt de la main droite qui se rapprochent
+   ferment un circuit : les 25 couples comptent. Rien ne se passe entre deux
+   doigts d'une même main — il faut les deux mains.
    ========================================================================= */
-/* Seuils en fraction de la longueur de paume. Resserrés : à 1.0 deux mains
-   simplement voisines fermaient six circuits d'un coup et tout se brouillait.
-   Il faut approcher deux bouts de doigts pour de bon. */
-const ON_INTER = 0.55, OFF_INTER = 0.82;
-const ON_INTRA = 0.45, OFF_INTRA = 0.70;
+/* Seuils en fraction de la longueur de paume. Le circuit se ferme d'un peu
+   plus loin qu'avant, pour que le fil parte sans qu'on ait à coller les
+   doigts ; l'ouverture reste franchement plus tardive que la fermeture, sans
+   quoi le fil clignote quand la distance oscille autour du seuil. */
+const ON_INTER = 0.80, OFF_INTER = 1.10;
 const NEAR = 0.10;
-const MAX_CONN = 4;
+const MAX_CONN = 5;
 
 const conns = new Map();
 let connSeq = 0;
 
-/* La note monte avec le rang des deux doigts reliés : pouce contre pouce
-   donne la fondamentale, auriculaire contre auriculaire le haut de la
-   tessiture. Lisible à l'oreille, et chaque couple garde sa note. */
-function pairFreq(ka, i, kb, j){
-  return hz(degree(i + j), 2);
+/* Chaque couple de doigts a sa propre identité, et pas seulement sa note :
+   octave, forme d'onde, désaccord, résonance, vitesse de modulation et
+   couleur en découlent. Deux fils différents ne se ressemblent donc jamais,
+   ni à l'oreille ni à l'œil, tout en restant stables d'une fois sur l'autre. */
+function pairVariant(i, j){
+  const h = i*7 + j*13;
+  return {
+    oct  : (h % 3) - 1,
+    wave : (h % 2) ? 'sawtooth' : 'square',
+    det  : 5 + (h % 5) * 5,
+    q    : 2.5 + (h % 4) * 2.8,
+    lfo  : 0.35 + (h % 7) * 0.22,
+    pw   : 0.18 + (h % 6) * 0.05,
+    col  : h % PALETTE.length,
+    amp  : 0.10 + (h % 5) * 0.022,
+    speed: 0.75 + (h % 9) * 0.16,
+    strands: 2 + (h % 3),
+  };
 }
-function pairColor(ka, i, kb, j){
-  return PALETTE[(i*5 + j + (ka === kb ? 2 : 0)) % PALETTE.length];
+/* La note monte avec le rang des deux doigts reliés : pouce contre pouce
+   donne la fondamentale, auriculaire contre auriculaire le haut. */
+function pairFreq(i, j, v){
+  return hz(degree(i + j), 2 + (v ? v.oct*0 : 0));
 }
 
 function updateConnections(){
@@ -944,18 +995,13 @@ function updateConnections(){
   const S = hands.length ? hands.reduce((a,h) => a + h.S, 0) / hands.length : 1;
   if (S < 8){ for (const [id,c] of conns){ c.voice.stop(ac.currentTime); conns.delete(id); } return; }
 
-  for (let a = 0; a < hands.length; a++){
-    for (let b = a; b < hands.length; b++){
-      const ha = hands[a], hb = hands[b];
-      const intra = (a === b);
-      for (let i = 0; i < 5; i++){
-        for (let j = 0; j < 5; j++){
-          if (intra && (i !== 0 || j === 0)) continue;     // sur une main : pouce vers un autre doigt
-          if (!intra && a > b) continue;
-          const pa = ha.pts[FINGERS[i].tip], pb = hb.pts[FINGERS[j].tip];
-          const d = Math.hypot(pa[0]-pb[0], pa[1]-pb[1]) / S;
-          cand.push({ id: ha.key+i+'_'+hb.key+j, ka:ha.key, kb:hb.key, i, j, intra, d, pa, pb });
-        }
+  const hL = hands.find((h) => h.key === 'L'), hR = hands.find((h) => h.key === 'R');
+  if (hL && hR){
+    for (let i = 0; i < 5; i++){
+      for (let j = 0; j < 5; j++){
+        const pa = hL.pts[FINGERS[i].tip], pb = hR.pts[FINGERS[j].tip];
+        const d = Math.hypot(pa[0]-pb[0], pa[1]-pb[1]) / S;
+        cand.push({ id:'L'+i+'_R'+j, i, j, d, pa, pb });
       }
     }
   }
@@ -964,17 +1010,16 @@ function updateConnections(){
   const t = ac.currentTime;
 
   for (const c of cand){
-    const on = c.intra ? ON_INTRA : ON_INTER;
-    const off = c.intra ? OFF_INTRA : OFF_INTER;
     const live = conns.get(c.id);
     if (live){
-      if (c.d > off){ live.voice.stop(t); conns.delete(c.id); crackle(false); continue; }
+      if (c.d > OFF_INTER){ live.voice.stop(t); conns.delete(c.id); crackle(false); continue; }
     } else {
-      if (c.d > on || conns.size >= MAX_CONN) continue;
-      const f = pairFreq(c.ka, c.i, c.kb, c.j);
+      if (c.d > ON_INTER || conns.size >= MAX_CONN) continue;
+      const v = pairVariant(c.i, c.j);
       conns.set(c.id, {
-        voice: makeVoice(state.synth, f), col: pairColor(c.ka, c.i, c.kb, c.j),
-        seed: (connSeq++ * 1.618) % 10, p:0, pSm:0, a:c.pa, b:c.pb, born: performance.now(),
+        voice: makeVoice(state.synth, pairFreq(c.i, c.j, v), v),
+        col: PALETTE[v.col], v,
+        seed: (connSeq++ * 1.618) % 10, p:0, pSm:0, a:c.pa, b:c.pb,
       });
       crackle(true);
     }
@@ -982,8 +1027,8 @@ function updateConnections(){
     if (!k) continue;
     seen.add(c.id);
     k.a = c.pa; k.b = c.pb;
-    k.p = clamp((off - c.d) / (off - NEAR), 0, 1);
-    k.pSm = lerp(k.pSm, k.p, 0.25);
+    k.p = clamp((OFF_INTER - c.d) / (OFF_INTER - NEAR), 0, 1);
+    k.pSm = lerp(k.pSm, k.p, 0.38);
     k.voice.set(k.pSm, t);
   }
   // une main a disparu : on coupe ce qui n'a plus de support
@@ -1089,8 +1134,8 @@ function draw(tSec){
   // --- connexions actives
   for (const [, k] of conns){
     const p = k.pSm;
-    ribbon(k.a[0], k.a[1], k.b[0], k.b[1], tSec, k.seed, k.col, {
-      strands:3, N:26, amp:0.13 + 0.07*p, width:1.8 + 4.0*p,
+    ribbon(k.a[0], k.a[1], k.b[0], k.b[1], tSec * k.v.speed, k.seed, k.col, {
+      strands:k.v.strands, N:26, amp:k.v.amp + 0.07*p, width:1.8 + 4.0*p,
       alpha:0.55 + 0.45*p, glow:9 + 16*p,
     });
     if (Math.random() < 0.18 + 0.3*p) spark(k.a[0], k.a[1], k.b[0], k.b[1], k.col[0]);
@@ -1119,10 +1164,10 @@ function say(msg, sticky){
 }
 legendEl.innerHTML =
   '<div class="one"><div class="ttl">FILAMENTS</div>' +
-  '<p>RAPPROCHE DEUX DOIGTS<br>' +
+  '<p>LES DEUX MAINS DANS LE CADRE<br>' +
+  '<em>UN DOIGT DE CHAQUE</em> QUI SE RAPPROCHENT<br>' +
   'UN FIL S\'ALLUME ET CHANTE<br>' +
-  '<em>POUCE ↔ DOIGT</em> SUR UNE MAIN<br>' +
-  '<em>N\'IMPORTE QUEL COUPLE</em> ENTRE LES DEUX<br>' +
+  'CHAQUE COUPLE A SA NOTE ET SON TIMBRE<br>' +
   'PLUS C\'EST PRÈS, PLUS ÇA S\'OUVRE</p></div>';
 
 /* --- rythmes ------------------------------------------------------------ */
@@ -1162,7 +1207,8 @@ bassBtn.addEventListener('pointerdown', (e) => {
   state.longBass = !state.longBass;
   bassBtn.classList.toggle('on', state.longBass);
   if (state.longBass) longBassOn(); else longBassOff();
-  say(state.longBass ? 'BASSE LONGUE' : 'BASSE COUPÉE');
+  $('#bassName').textContent = state.longBass ? longBassName : '—';
+  say(state.longBass ? 'BASSE · ' + longBassName : 'BASSE COUPÉE');
 });
 $('#synthBtn').addEventListener('pointerdown', (e) => {
   e.preventDefault();
@@ -1178,7 +1224,7 @@ $('#voxBtn').addEventListener('pointerdown', (e) => {
 $('#allOff').addEventListener('pointerdown', (e) => {
   e.preventDefault(); bump(e.currentTarget);
   state.beat = -1; refreshBeatUI();
-  if (state.longBass){ state.longBass = false; bassBtn.classList.remove('on'); longBassOff(); }
+  if (state.longBass){ state.longBass = false; bassBtn.classList.remove('on'); longBassOff(); $('#bassName').textContent = '—'; }
   killAllConnections();
   say('TOUT COUPÉ');
 });
@@ -1342,7 +1388,8 @@ window.TR9 = {
   get ac(){ return ac; },
   get hands(){ return hands; },
   set hands(h){ hands = h; },
-  updateConnections, pairFreq,
+  updateConnections, pairFreq, pairVariant, BASSES,
+  get chorus(){ return bus.chorus; },
 };
 
 resize();
