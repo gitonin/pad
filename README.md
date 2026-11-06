@@ -8,12 +8,17 @@ deux doigts et chacun pilote son palet de frappe. Premier à **7 buts**.
 Une seule page autonome, aucune dépendance à installer, aucun échantillon : le son est
 synthétisé en Web Audio.
 
-> Le séquenceur développé précédemment reste dans le dépôt, sous **`drums.html`** :
-> nappes tenues aux boutons, percussions jouées aux doigts. Une frappe y est un
-> **creux** — de combien le doigt s'est raccourci par rapport à 100 ms plus tôt, en
-> fraction de sa propre longueur — auquel on retranche la médiane des cinq doigts,
-> si bien qu'un mouvement d'ensemble de la main s'annule et qu'un doigt seul ressort.
-> Le seuil se règle avec `DET.DROP`, en haut de la section « DÉTECTION DE FRAPPE ».
+> **`drums.html`** — l'autre expérience du dépôt : *FILAMENTS*. Caméra en noir et
+> blanc, squelette des mains en fil de fer blanc, et une toile de rubans roses et
+> verts qui vibrent entre les doigts et le poignet. **Rapprocher deux bouts de doigts
+> ferme un circuit** : un fil s'allume, crépite, et une voix de synthé naît. Le couple
+> de doigts choisit la note — pouce contre pouce donne la fondamentale, auriculaire
+> contre auriculaire le haut de la tessiture — et la distance ouvre le timbre en
+> continu. Sur une même main seul le pouce fait contact, parce que deux doigts voisins
+> sont déjà collés au repos ; entre les deux mains, les vingt-cinq couples comptent.
+> Cinq styles de synthé au bouton **SYNTHÉ**, quatre rythmes techno / house avec
+> basse, un **RND BEAT**, une **BASSE LONGUE** tenue, les trois potards d'effet et la
+> voix digitalisée.
 
 ---
 

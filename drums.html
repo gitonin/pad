@@ -183,34 +183,44 @@ input[type=range]::-moz-range-thumb{width:15px;height:15px;border:none;border-ra
 @keyframes pulse{0%,100%{box-shadow:0 0 10px rgba(255,255,255,.14),0 0 10px rgba(255,255,255,.07) inset}50%{box-shadow:0 0 22px rgba(255,255,255,.34),0 0 18px rgba(255,255,255,.14) inset}}
 #boot .note{font-size:8px;letter-spacing:.12em;color:#4c535d;max-width:300px;line-height:1.9;}
 .hidden{display:none!important;}
+
+/* ---------- AJOUTS FILAMENTS ---------- */
+.btn b{font-weight:600;color:#fff;}
+.btn.tog.on b{color:#fff;}
+#legend .one{flex:0 1 240px;text-align:center;}
+#legend .one .ttl{font-size:8px;letter-spacing:.2em;color:#fff;text-shadow:var(--glow-s);margin-bottom:6px;}
+#legend .one p{margin:0;font-size:8px;letter-spacing:.12em;color:#7e8691;line-height:2;}
+#legend .one em{font-style:normal;color:#c3cad3;}
+.nap.beat.on{border-color:#fff;}
 </style>
 </head>
 <body>
 
 <div id="app">
   <header>
-    <div class="logo">NEON&nbsp;HAND <span>/ DRUMS</span></div>
+    <div class="logo">NEON&nbsp;HAND <span>/ FILAMENTS</span></div>
     <div class="grid16" id="grid16"></div>
-    <div class="bpmread"><b id="bpmread">118</b> BPM</div>
+    <div class="bpmread"><b id="bpmread">124</b> BPM</div>
   </header>
 
   <div id="stage">
     <video id="cam" playsinline muted autoplay></video>
     <canvas id="fx"></canvas>
     <div id="vignette"></div>
-    <div id="touchkit"></div>
     <div id="legend"></div>
     <div id="hud"><div id="status">INIT…</div></div>
   </div>
 
   <footer>
-    <div class="sect">NAPPES — BASSES</div>
-    <div class="row" id="rowBass"></div>
-    <div class="sect">NAPPES — SYNTHÉS</div>
-    <div class="row" id="rowSyn"></div>
+    <div class="sect">RYTHMES</div>
+    <div class="row" id="rowBeat"></div>
     <div class="row">
-      <button class="btn" id="vox">I WANNA DANCE</button>
-      <button class="btn tog" id="quant">QUANT</button>
+      <button class="btn" id="rndBeat">RND BEAT</button>
+      <button class="btn tog" id="bassBtn">BASSE LONGUE</button>
+      <button class="btn" id="synthBtn">SYNTHÉ · <b id="synthName">VERRE</b></button>
+    </div>
+    <div class="row">
+      <button class="btn" id="voxBtn">I WANNA DANCE</button>
       <button class="btn" id="allOff">ALL OFF</button>
     </div>
     <div class="knobs">
@@ -220,9 +230,8 @@ input[type=range]::-moz-range-thumb{width:15px;height:15px;border:none;border-ra
     </div>
     <div class="bpmrow">
       <div class="klbl">BPM</div>
-      <input type="range" id="bpm" min="88" max="152" step="1" value="118">
+      <input type="range" id="bpm" min="100" max="150" step="1" value="124">
       <button class="tapb" id="tap">TAP</button>
-      <button class="tapb" id="rnd">RND</button>
     </div>
   </footer>
 </div>
@@ -230,9 +239,9 @@ input[type=range]::-moz-range-thumb{width:15px;height:15px;border:none;border-ra
 <div id="boot">
   <h1>NEON HAND</h1>
   <div class="sub">
-    NAPPES AUX BOUTONS<br>
-    PERCUSSIONS AUX DOIGTS<br>
-    <span style="color:#4c535d">UN DOIGT QUI SE PLIE = UN SON</span>
+    DEUX MAINS DEVANT LA CAMÉRA<br>
+    RAPPROCHE DEUX DOIGTS<br>
+    <span style="color:#4c535d">UN FIL S'ALLUME ET CHANTE</span>
   </div>
   <button id="startbtn">DÉMARRER</button>
   <div class="note" id="bootnote">
@@ -244,8 +253,11 @@ input[type=range]::-moz-range-thumb{width:15px;height:15px;border:none;border-ra
 'use strict';
 
 /* =========================================================================
-   NEON HAND — FINGER DRUMS
-   Nappes tenues aux boutons, percussions jouées aux doigts via la caméra.
+   NEON HAND — FILAMENTS
+   Des fils colorés vibrent entre les doigts. Rapprocher deux doigts ferme un
+   circuit : un fil s'allume et une voix de synthé naît, dont le timbre dépend
+   des deux doigts reliés et dont l'intensité suit la distance. Les boutons du
+   bas lancent des rythmes techno / house.
    Tout le son est synthétisé en Web Audio.
    ========================================================================= */
 
@@ -254,20 +266,32 @@ const clamp = (v,a,b) => v < a ? a : v > b ? b : v;
 const lerp  = (a,b,t) => a + (b-a)*t;
 const rnd   = (a,b) => a + Math.random()*(b-a);
 const pick  = (arr) => arr[(Math.random()*arr.length)|0];
+const chance= (p) => Math.random() < p;
 
-/* ---------------------------------------------------------------- état */
+const STEPS = 16;
+
 const state = {
-  bpm       : 118,
-  root      : 0,          // tonique, en demi-tons depuis La
+  bpm       : 124,
+  root      : 0,
   scale     : [0,3,5,7,10],
-  transpose : 0,          // potard PITCH
+  transpose : 0,
   delay     : 0,
   drive     : 0,
-  quantize  : false,
+  beat      : -1,          // index du rythme courant, -1 = aucun
+  synth     : 0,           // style de synthé des filaments
+  longBass  : false,
+  step      : 0,
+  nextTime  : 0,
 };
 const beatDur = () => 60 / state.bpm;
+const stepDur = () => 60 / state.bpm / 4;        // doubles-croches
 const ratio   = () => Math.pow(2, state.transpose / 12);
-const hz      = (semi, oct=0) => 55 * Math.pow(2, (semi + state.root)/12 + oct) * ratio();
+const hz = (semi, oct=0) => 55 * Math.pow(2, (semi + state.root)/12 + oct) * ratio();
+function degree(d){
+  const sc = state.scale;
+  const o = Math.floor(d / sc.length);
+  return sc[((d % sc.length) + sc.length) % sc.length] + o*12;
+}
 
 /* =========================================================================
    CHAÎNE AUDIO
@@ -276,10 +300,9 @@ let ac = null, noiseBuf = null;
 const bus = {};
 
 function makeNoise(){
-  const len = Math.floor(ac.sampleRate * 2);
-  const b = ac.createBuffer(1, len, ac.sampleRate);
-  const d = b.getChannelData(0);
-  for (let i = 0; i < len; i++) d[i] = Math.random()*2 - 1;
+  const n = Math.floor(ac.sampleRate * 2);
+  const b = ac.createBuffer(1, n, ac.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random()*2 - 1;
   return b;
 }
 function noiseSrc(){
@@ -288,24 +311,25 @@ function noiseSrc(){
   s.playbackRate.value = rnd(0.85, 1.15);
   return s;
 }
-function distCurve(amount){
-  const k = amount * amount * 340, n = 2048, c = new Float32Array(n);
+function distCurve(a){
+  const k = a*a*340, n = 2048, c = new Float32Array(n);
   for (let i = 0; i < n; i++){ const x = (i*2)/n - 1; c[i] = (1+k)*x / (1 + k*Math.abs(x)); }
   return c;
 }
-function crushCurve(levels){
+function crushCurve(l){
   const n = 1024, c = new Float32Array(n);
-  for (let i = 0; i < n; i++){ const x = (i*2)/n - 1; c[i] = Math.round(x*levels)/levels; }
+  for (let i = 0; i < n; i++){ const x = (i*2)/n - 1; c[i] = Math.round(x*l)/l; }
   return c;
 }
 
 function buildAudio(){
   const AC = window.AudioContext || window.webkitAudioContext;
-  ac = new AC({ latencyHint: 'interactive' });
+  ac = new AC({ latencyHint:'interactive' });
   noiseBuf = makeNoise();
 
-  bus.perc = ac.createGain(); bus.perc.gain.value = 1.0;    // percussions
-  bus.pad  = ac.createGain(); bus.pad.gain.value  = 0.62;   // nappes tenues
+  bus.perc = ac.createGain(); bus.perc.gain.value = 1.0;
+  bus.bass = ac.createGain(); bus.bass.gain.value = 0.9;
+  bus.syn  = ac.createGain(); bus.syn.gain.value  = 0.75;
   bus.mix  = ac.createGain(); bus.mix.gain.value  = 0.9;
 
   bus.preDrive  = ac.createGain();
@@ -316,15 +340,15 @@ function buildAudio(){
   bus.dSend = ac.createGain(); bus.dSend.gain.value = 0;
   bus.delay = ac.createDelay(2.0);
   bus.dFb   = ac.createGain(); bus.dFb.gain.value = 0.3;
-  bus.dFilt = ac.createBiquadFilter(); bus.dFilt.type='bandpass'; bus.dFilt.frequency.value=1400; bus.dFilt.Q.value=0.6;
+  bus.dFilt = ac.createBiquadFilter(); bus.dFilt.type='bandpass'; bus.dFilt.frequency.value=1500; bus.dFilt.Q.value=0.6;
 
   bus.comp = ac.createDynamicsCompressor();
-  bus.comp.threshold.value = -9; bus.comp.knee.value = 6; bus.comp.ratio.value = 12;
-  bus.comp.attack.value = 0.003; bus.comp.release.value = 0.14;
+  bus.comp.threshold.value=-10; bus.comp.knee.value=6; bus.comp.ratio.value=12;
+  bus.comp.attack.value=0.003; bus.comp.release.value=0.14;
 
   bus.master = ac.createGain(); bus.master.gain.value = 0.0001;
 
-  bus.perc.connect(bus.mix); bus.pad.connect(bus.mix);
+  for (const b of [bus.perc, bus.bass, bus.syn]) b.connect(bus.mix);
   bus.mix.connect(bus.preDrive);
   bus.preDrive.connect(bus.shaper);
   bus.shaper.connect(bus.postDrive);
@@ -341,80 +365,46 @@ function buildAudio(){
   applyFx();
   bus.master.gain.exponentialRampToValueAtTime(0.85, ac.currentTime + 0.6);
 }
-
 function applyFx(){
   if (!ac) return;
   const t = ac.currentTime;
   bus.delay.delayTime.setTargetAtTime(clamp(beatDur()*0.75, 0.02, 1.9), t, 0.05);
-  bus.dSend.gain.setTargetAtTime(state.delay * 0.65, t, 0.04);
+  bus.dSend.gain.setTargetAtTime(state.delay * 0.6, t, 0.04);
   bus.dFb.gain.setTargetAtTime(0.20 + state.delay * 0.50, t, 0.04);
   bus.shaper.curve = distCurve(state.drive);
-  bus.preDrive.gain.setTargetAtTime(1 + state.drive * 2.2, t, 0.04);
-  bus.postDrive.gain.setTargetAtTime(1 / (1 + state.drive * 1.9), t, 0.04);
-  bus.tone.frequency.setTargetAtTime(15000 - state.drive * 8500, t, 0.05);
+  bus.preDrive.gain.setTargetAtTime(1 + state.drive*2.2, t, 0.04);
+  bus.postDrive.gain.setTargetAtTime(1/(1 + state.drive*1.9), t, 0.04);
+  bus.tone.frequency.setTargetAtTime(15000 - state.drive*8500, t, 0.05);
 }
-
 function env(param, t, peak, a, d){
   param.cancelScheduledValues(t);
   param.setValueAtTime(0.0001, t);
-  param.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + a);
+  param.exponentialRampToValueAtTime(Math.max(peak,0.0002), t + a);
   param.exponentialRampToValueAtTime(0.0001, t + a + d);
 }
 function stopAt(nodes, t){ for (const n of nodes){ try { n.stop(t); } catch(e){} } }
 
 /* =========================================================================
-   PERCUSSIONS — un son par doigt, vélocité 0..1
+   PERCUSSIONS
    ========================================================================= */
-const dR = () => Math.pow(2, state.transpose/12 * 0.5);   // les fûts suivent le pitch à moitié
-
+const dR = () => Math.pow(2, state.transpose/12 * 0.5);
 const PERC = {
   kick(t, v){
     const r = dR(), o = ac.createOscillator(), g = ac.createGain();
     o.type='sine'; o.connect(g); g.connect(bus.perc);
-    o.frequency.setValueAtTime(150*r, t);
-    o.frequency.exponentialRampToValueAtTime(48*r, t + 0.055);
-    env(g.gain, t, 0.95*v, 0.002, 0.34);
+    o.frequency.setValueAtTime(165*r, t);
+    o.frequency.exponentialRampToValueAtTime(46*r, t + 0.055);
+    env(g.gain, t, 1.0*v, 0.002, 0.33);
     o.start(t); stopAt([o], t + 0.45);
     const n = noiseSrc(), hp = ac.createBiquadFilter(), ng = ac.createGain();
-    hp.type='highpass'; hp.frequency.value=1900;
+    hp.type='highpass'; hp.frequency.value = 2200;
     n.connect(hp); hp.connect(ng); ng.connect(bus.perc);
-    env(ng.gain, t, 0.26*v, 0.001, 0.013);
-    n.start(t); stopAt([n], t + 0.07);
-  },
-  sub(t, v){                                   // 808 long
-    const r = dR(), o = ac.createOscillator(), g = ac.createGain();
-    o.type='sine'; o.connect(g); g.connect(bus.perc);
-    o.frequency.setValueAtTime(110*r, t);
-    o.frequency.exponentialRampToValueAtTime(36*r, t + 0.10);
-    env(g.gain, t, 0.9*v, 0.004, 0.85);
-    o.start(t); stopAt([o], t + 1.0);
-  },
-  hat(t, v){
-    const n = noiseSrc(), hp = ac.createBiquadFilter(), bp = ac.createBiquadFilter(), g = ac.createGain();
-    hp.type='highpass'; hp.frequency.value = 8200*dR();
-    bp.type='bandpass'; bp.frequency.value = 11000*dR(); bp.Q.value=0.7;
-    n.connect(hp); hp.connect(bp); bp.connect(g); g.connect(bus.perc);
-    env(g.gain, t, 0.30*v, 0.001, 0.038);
-    n.start(t); stopAt([n], t + 0.1);
-  },
-  ohat(t, v){
-    const n = noiseSrc(), hp = ac.createBiquadFilter(), g = ac.createGain();
-    hp.type='highpass'; hp.frequency.value = 7600*dR();
-    n.connect(hp); hp.connect(g); g.connect(bus.perc);
-    env(g.gain, t, 0.24*v, 0.002, 0.30);
-    n.start(t); stopAt([n], t + 0.4);
-  },
-  shaker(t, v){
-    const n = noiseSrc(), bp = ac.createBiquadFilter(), g = ac.createGain();
-    bp.type='bandpass'; bp.frequency.value = 6200*dR(); bp.Q.value = 2.2;
-    n.connect(bp); bp.connect(g); g.connect(bus.perc);
-    env(g.gain, t, 0.26*v, 0.006, 0.075);
-    n.start(t); stopAt([n], t + 0.15);
+    env(ng.gain, t, 0.22*v, 0.001, 0.012);
+    n.start(t); stopAt([n], t + 0.06);
   },
   clap(t, v){
     const n = noiseSrc(), bp = ac.createBiquadFilter(), g = ac.createGain();
-    bp.type='bandpass'; bp.frequency.value = 1350*dR(); bp.Q.value = 1.1;
-    g.gain.value = 0;
+    bp.type='bandpass'; bp.frequency.value = 1400*dR(); bp.Q.value = 1.1; g.gain.value = 0;
     n.connect(bp); bp.connect(g); g.connect(bus.perc);
     const sp = 0.009;
     for (let i = 0; i < 3; i++){
@@ -424,56 +414,342 @@ const PERC = {
       g.gain.exponentialRampToValueAtTime(0.06*v, tt + sp*0.9);
     }
     g.gain.setValueAtTime(0.5*v, t + 3*sp);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 3*sp + 0.17);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 3*sp + 0.18);
     n.start(t); stopAt([n], t + 0.4);
   },
   snare(t, v){
     const r = dR();
     const n = noiseSrc(), hp = ac.createBiquadFilter(), ng = ac.createGain();
-    hp.type='highpass'; hp.frequency.value = 1700*r;
+    hp.type='highpass'; hp.frequency.value = 1600*r;
     n.connect(hp); hp.connect(ng); ng.connect(bus.perc);
-    env(ng.gain, t, 0.42*v, 0.001, 0.14);
+    env(ng.gain, t, 0.42*v, 0.001, 0.13);
     n.start(t); stopAt([n], t + 0.3);
     for (const f of [185, 278]){
       const o = ac.createOscillator(), g = ac.createGain();
       o.type='triangle'; o.frequency.setValueAtTime(f*r, t);
       o.connect(g); g.connect(bus.perc);
-      env(g.gain, t, 0.26*v, 0.001, 0.10);
+      env(g.gain, t, 0.24*v, 0.001, 0.09);
       o.start(t); stopAt([o], t + 0.2);
     }
   },
+  hat(t, v){
+    const n = noiseSrc(), hp = ac.createBiquadFilter(), bp = ac.createBiquadFilter(), g = ac.createGain();
+    hp.type='highpass'; hp.frequency.value = 8400*dR();
+    bp.type='bandpass'; bp.frequency.value = 11500*dR(); bp.Q.value = 0.7;
+    n.connect(hp); hp.connect(bp); bp.connect(g); g.connect(bus.perc);
+    env(g.gain, t, 0.24*v, 0.001, 0.034);
+    n.start(t); stopAt([n], t + 0.1);
+  },
+  ohat(t, v){
+    const n = noiseSrc(), hp = ac.createBiquadFilter(), g = ac.createGain();
+    hp.type='highpass'; hp.frequency.value = 7600*dR();
+    n.connect(hp); hp.connect(g); g.connect(bus.perc);
+    env(g.gain, t, 0.21*v, 0.002, 0.26);
+    n.start(t); stopAt([n], t + 0.4);
+  },
+  shaker(t, v){
+    const n = noiseSrc(), bp = ac.createBiquadFilter(), g = ac.createGain();
+    bp.type='bandpass'; bp.frequency.value = 6400*dR(); bp.Q.value = 2.2;
+    n.connect(bp); bp.connect(g); g.connect(bus.perc);
+    env(g.gain, t, 0.20*v, 0.006, 0.065);
+    n.start(t); stopAt([n], t + 0.15);
+  },
   rim(t, v){
-    const r = dR();
-    const o = ac.createOscillator(), bp = ac.createBiquadFilter(), g = ac.createGain();
-    o.type='triangle'; bp.type='bandpass'; bp.frequency.value = 1750*r; bp.Q.value = 7;
+    const r = dR(), o = ac.createOscillator(), bp = ac.createBiquadFilter(), g = ac.createGain();
+    o.type='triangle'; bp.type='bandpass'; bp.frequency.value = 1800*r; bp.Q.value = 7;
     o.connect(bp); bp.connect(g); g.connect(bus.perc);
     o.frequency.setValueAtTime(2100*r, t);
     o.frequency.exponentialRampToValueAtTime(950*r, t + 0.02);
-    env(g.gain, t, 0.45*v, 0.001, 0.05);
+    env(g.gain, t, 0.40*v, 0.001, 0.05);
     o.start(t); stopAt([o], t + 0.12);
   },
-  tom(t, v){
-    const r = dR(), o = ac.createOscillator(), g = ac.createGain();
-    o.type='sine'; o.connect(g); g.connect(bus.perc);
-    o.frequency.setValueAtTime(320*r, t);
-    o.frequency.exponentialRampToValueAtTime(130*r, t + 0.10);
-    env(g.gain, t, 0.50*v, 0.002, 0.26);
-    o.start(t); stopAt([o], t + 0.4);
-  },
-  cow(t, v){
-    const r = dR(), g = ac.createGain(), bp = ac.createBiquadFilter();
-    bp.type='bandpass'; bp.frequency.value = 820*r; bp.Q.value = 2.5;
-    bp.connect(g); g.connect(bus.perc);
-    const os = [];
-    for (const f of [587, 845]){
-      const o = ac.createOscillator(); o.type='square';
-      o.frequency.setValueAtTime(f*r, t); o.connect(bp); os.push(o);
-    }
-    env(g.gain, t, 0.26*v, 0.002, 0.17);
-    for (const o of os) o.start(t);
-    stopAt(os, t + 0.3);
-  },
 };
+
+/* --- basse des rythmes : sub + scie dans un passe-bas résonant ----------- */
+function bassHit(t, deg, dur, accent, slideFrom){
+  const f = hz(degree(deg), 0);
+  const o1 = ac.createOscillator(); o1.type = 'sawtooth';
+  const o2 = ac.createOscillator(); o2.type = 'sine';
+  const g1 = ac.createGain(); g1.gain.value = 0.55;
+  const g2 = ac.createGain(); g2.gain.value = 0.85;
+  const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.Q.value = accent ? 9 : 5;
+  const g  = ac.createGain();
+  o1.connect(g1); g1.connect(lp); lp.connect(g);
+  o2.connect(g2); g2.connect(g);
+  g.connect(bus.bass);
+  if (slideFrom != null){
+    o1.frequency.setValueAtTime(hz(degree(slideFrom),0), t);
+    o1.frequency.exponentialRampToValueAtTime(f, t + 0.055);
+    o2.frequency.setValueAtTime(hz(degree(slideFrom),0), t);
+    o2.frequency.exponentialRampToValueAtTime(f, t + 0.055);
+  } else {
+    o1.frequency.setValueAtTime(f, t);
+    o2.frequency.setValueAtTime(f, t);
+  }
+  const top = accent ? 2600 : 1300;
+  lp.frequency.setValueAtTime(220, t);
+  lp.frequency.exponentialRampToValueAtTime(top, t + 0.015);
+  lp.frequency.exponentialRampToValueAtTime(260, t + dur*0.9);
+  env(g.gain, t, accent ? 0.80 : 0.60, 0.005, dur);
+  o1.start(t); o2.start(t); stopAt([o1,o2], t + dur + 0.1);
+}
+
+/* --- basse longue tenue -------------------------------------------------- */
+let longBassNodes = null;
+function longBassOn(){
+  if (longBassNodes) return;
+  const t = ac.currentTime;
+  const out = ac.createGain(); out.gain.value = 0.0001; out.connect(bus.bass);
+  const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = 220; lp.Q.value = 4;
+  lp.connect(out);
+  const nodes = [], voices = [];
+  const add = (type, semi, oct, gain, det) => {
+    const o = ac.createOscillator(); o.type = type; o.detune.value = det||0;
+    o.frequency.value = hz(semi, oct);
+    const g = ac.createGain(); g.gain.value = gain;
+    o.connect(g); g.connect(lp);
+    nodes.push(o); voices.push({ osc:o, semi, oct });
+  };
+  add('sine', 0, 0, 0.9, 0);
+  add('sine', 0, 0, 0.4, 7);
+  add('triangle', 0, 1, 0.14, 0);
+  const lfo = ac.createOscillator(); lfo.frequency.value = 0.09;
+  const lg  = ac.createGain(); lg.gain.value = 140;
+  lfo.connect(lg); lg.connect(lp.frequency); nodes.push(lfo);
+  for (const n of nodes) n.start(t);
+  out.gain.exponentialRampToValueAtTime(0.55, t + 1.6);
+  longBassNodes = { out, nodes, voices };
+}
+function longBassOff(){
+  if (!longBassNodes) return;
+  const t = ac.currentTime, d = longBassNodes;
+  longBassNodes = null;
+  d.out.gain.cancelScheduledValues(t);
+  d.out.gain.setValueAtTime(Math.max(d.out.gain.value, 0.0001), t);
+  d.out.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
+  stopAt(d.nodes, t + 1.4);
+  setTimeout(() => { try { d.out.disconnect(); } catch(e){} }, 1700);
+}
+function longBassRetune(){
+  if (!longBassNodes) return;
+  const t = ac.currentTime;
+  for (const v of longBassNodes.voices){
+    v.osc.frequency.cancelScheduledValues(t);
+    v.osc.frequency.setTargetAtTime(hz(v.semi, v.oct), t, 0.09);
+  }
+}
+
+/* =========================================================================
+   RYTHMES — 16 pas, doubles-croches
+   x = coup, X = coup accentué, . = silence
+   Pour la basse : chiffre = degré de la gamme, . = silence
+   ========================================================================= */
+const P = (s) => s.split('').filter((ch) => ch !== ' ').map((ch) => ch === 'X' ? 2 : (ch === 'x' ? 1 : 0));
+const B = (s) => s.split('').filter((ch) => ch !== ' ').map((ch) => ch === '.' ? -1 : parseInt(ch, 36));
+
+const BEATS = [
+  { name:'TECHNO', sub:'4/4 DUR', sw:0,
+    k: P('X... x... x... x...'),
+    c: P('.... x... .... x...'),
+    h: P('.x.x .x.x .x.x .x.x'),
+    o: P('..x. ..x. ..x. ..x.'),
+    r: P('.... .... .... ..x.'),
+    b: B('..0. ..0. ..0. ..3.') },
+  { name:'HOUSE', sub:'SWING', sw:0.14,
+    k: P('X... x... x... x...'),
+    c: P('.... X... .... X...'),
+    h: P('.x.x .x.x .x.x .x.x'),
+    o: P('..x. ..x. ..x. ..x.'),
+    sh:P('x.x. x.x. x.x. x.x.'),
+    b: B('0.5. 0.5. 2.7. 0.5.') },
+  { name:'ACID', sub:'303', sw:0,
+    k: P('X... x... x... x...'),
+    c: P('.... x... .... x...'),
+    h: P('xxxx xxxx xxxx xxxx'),
+    o: P('.... ...x .... ....'),
+    b: B('0.03 .0.5 .30. 7.53'),
+    sl:P('.... ..x. .... .x..') },
+  { name:'BREAK', sub:'ELECTRO', sw:0.06,
+    k: P('X..x ..x. ..x. .x..'),
+    s: P('.... X... .... X...'),
+    h: P('x.xx .x.x x.xx .x.x'),
+    o: P('.... .... ..x. ....'),
+    b: B('0... .3.. 0..5 ..3.') },
+];
+
+/* un rythme tiré au sort, mais qui reste carré : grosse caisse sur le 1,
+   contretemps sur 2 et 4, et une basse calée sur la grosse caisse */
+function randomBeat(){
+  const four = chance(0.6);
+  const k = [], c = [], h = [], o = [], b = [];
+  for (let i = 0; i < STEPS; i++){
+    k.push(four ? (i % 4 === 0 ? (i === 0 ? 2 : 1) : (chance(0.07) ? 1 : 0))
+                : ((i === 0) ? 2 : (chance(0.22) && i % 2 === 0 ? 1 : 0)));
+    c.push((i === 4 || i === 12) ? 2 : (chance(0.05) ? 1 : 0));
+    h.push(chance(0.62) ? 1 : 0);
+    o.push((i % 4 === 2 && chance(0.55)) ? 1 : 0);
+    b.push(chance(0.34) ? (chance(0.6) ? 0 : pick([2,3,4,5,7])) : -1);
+  }
+  k[0] = 2; b[0] = 0;
+  return { name:'RND', sub:'TIRÉ AU SORT', sw: pick([0,0,0.08,0.14]), k, c, h, o, b };
+}
+let rndBeatPattern = null;
+const currentBeat = () => state.beat === 4 ? rndBeatPattern : (state.beat >= 0 ? BEATS[state.beat] : null);
+
+/* ---- ordonnanceur ------------------------------------------------------ */
+const visQ = [];
+let lastBassDeg = null;
+
+function scheduleStep(step, t){
+  const bt = currentBeat();
+  visQ.push({ t, step });
+  if (!bt) return;
+  const sw = (step % 2 === 1) ? (bt.sw || 0) * stepDur() : 0;
+  const tt = t + sw;
+  const g = (arr) => arr ? arr[step] : 0;
+
+  if (g(bt.k)) PERC.kick(tt, g(bt.k) === 2 ? 1.0 : 0.82);
+  if (g(bt.c)) PERC.clap(tt, g(bt.c) === 2 ? 1.0 : 0.8);
+  if (g(bt.s)) PERC.snare(tt, g(bt.s) === 2 ? 1.0 : 0.8);
+  if (g(bt.h)) PERC.hat(tt, g(bt.h) === 2 ? 1.0 : 0.72);
+  if (g(bt.o)) PERC.ohat(tt, 0.85);
+  if (g(bt.sh)) PERC.shaker(tt, 0.8);
+  if (g(bt.r)) PERC.rim(tt, 0.85);
+
+  if (bt.b){
+    const d = bt.b[step];
+    if (d >= 0){
+      const slide = bt.sl && bt.sl[step] ? lastBassDeg : null;
+      bassHit(tt, d, stepDur() * (slide != null ? 1.8 : 1.5), !!g(bt.k), slide);
+      lastBassDeg = d;
+    }
+  }
+}
+let schedTimer = null;
+function startClock(){
+  if (schedTimer) return;
+  state.nextTime = ac.currentTime + 0.08;
+  schedTimer = setInterval(() => {
+    if (!ac) return;
+    while (state.nextTime < ac.currentTime + 0.14){
+      scheduleStep(state.step, state.nextTime);
+      state.nextTime += stepDur();
+      state.step = (state.step + 1) % STEPS;
+    }
+  }, 22);
+}
+
+/* =========================================================================
+   VOIX DE SYNTHÉ DES FILAMENTS
+   Une voix tenue par connexion. `set(p)` suit la proximité : p = 0 au bord de
+   la portée, p = 1 doigts joints. Le timbre dépend du style choisi.
+   ========================================================================= */
+const SYNTHS = ['VERRE', 'LAME', 'SOUFFLE', 'VOYELLE', 'CORDE'];
+
+function makeVoice(style, f){
+  const t = ac.currentTime;
+  const out = ac.createGain(); out.gain.value = 0.0001; out.connect(bus.syn);
+  const nodes = [];
+  const osc = (type, freq, det) => {
+    const o = ac.createOscillator(); o.type = type;
+    o.frequency.value = freq; o.detune.value = det || 0;
+    nodes.push(o); return o;
+  };
+  // léger frémissement d'amplitude : l'énergie n'est jamais tout à fait stable
+  const shimmer = ac.createOscillator(); shimmer.type = 'sine';
+  shimmer.frequency.value = rnd(4.5, 9.5);
+  const shg = ac.createGain(); shg.gain.value = 0.09;
+  shimmer.connect(shg); nodes.push(shimmer);
+
+  let set;
+  if (style === 0){                                   // VERRE — FM cloche
+    const car = osc('sine', f), mod = osc('sine', f*3.01);
+    const mg = ac.createGain(); mg.gain.value = f*0.3;
+    const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=6000;
+    mod.connect(mg); mg.connect(car.frequency);
+    car.connect(lp); lp.connect(out); shg.connect(out.gain);
+    set = (p, tt) => {
+      mg.gain.setTargetAtTime(f*(0.25 + 2.8*p), tt, 0.05);
+      out.gain.setTargetAtTime(0.05 + 0.20*p, tt, 0.06);
+    };
+  } else if (style === 1){                            // LAME — scies résonantes
+    const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=7;
+    for (const d of [-8, 0, 8]) osc('sawtooth', f, d).connect(lp);
+    const vg = ac.createGain(); vg.gain.value = 0.3;
+    lp.connect(vg); vg.connect(out); shg.connect(out.gain);
+    set = (p, tt) => {
+      lp.frequency.setTargetAtTime(280 + 3600*p*p, tt, 0.05);
+      out.gain.setTargetAtTime(0.05 + 0.18*p, tt, 0.06);
+    };
+  } else if (style === 2){                            // SOUFFLE — carré + air
+    const bp = ac.createBiquadFilter(); bp.type='bandpass'; bp.Q.value=3.5;
+    for (const d of [-6, 6]) osc('square', f, d).connect(bp);
+    const n = noiseSrc(); const nbp = ac.createBiquadFilter();
+    nbp.type='bandpass'; nbp.frequency.value = f*4; nbp.Q.value = 1.4;
+    const ng = ac.createGain(); ng.gain.value = 0.3;
+    n.connect(nbp); nbp.connect(ng); ng.connect(out); nodes.push(n);
+    const vg = ac.createGain(); vg.gain.value = 0.22;
+    bp.connect(vg); vg.connect(out); shg.connect(out.gain);
+    set = (p, tt) => {
+      bp.frequency.setTargetAtTime(f*(1 + 3*p), tt, 0.05);
+      ng.gain.setTargetAtTime(0.16*(1-p) + 0.03, tt, 0.06);
+      out.gain.setTargetAtTime(0.05 + 0.17*p, tt, 0.06);
+    };
+  } else if (style === 3){                            // VOYELLE — formants
+    const src = osc('sawtooth', f);
+    const f1 = ac.createBiquadFilter(); f1.type='bandpass'; f1.Q.value=9;
+    const f2 = ac.createBiquadFilter(); f2.type='bandpass'; f2.Q.value=11;
+    const g1 = ac.createGain(); g1.gain.value=0.5;
+    const g2 = ac.createGain(); g2.gain.value=0.3;
+    src.connect(f1); src.connect(f2); f1.connect(g1); f2.connect(g2);
+    g1.connect(out); g2.connect(out); shg.connect(out.gain);
+    set = (p, tt) => {                                // de « ou » fermé vers « a » ouvert
+      f1.frequency.setTargetAtTime(lerp(320, 760, p), tt, 0.07);
+      f2.frequency.setTargetAtTime(lerp(760, 1700, p), tt, 0.07);
+      out.gain.setTargetAtTime(0.06 + 0.24*p, tt, 0.06);
+    };
+  } else {                                            // CORDE — pincé tenu
+    const bp = ac.createBiquadFilter(); bp.type='bandpass'; bp.Q.value=4;
+    osc('triangle', f).connect(bp);
+    const sa = osc('sawtooth', f, 5); const sg = ac.createGain(); sg.gain.value = 0.35;
+    sa.connect(sg); sg.connect(bp);
+    const vib = osc('sine', rnd(4, 6.5));
+    const vg2 = ac.createGain(); vg2.gain.value = f*0.006;
+    vib.connect(vg2);
+    const vg = ac.createGain(); vg.gain.value = 0.3;
+    bp.connect(vg); vg.connect(out); shg.connect(out.gain);
+    set = (p, tt) => {
+      bp.frequency.setTargetAtTime(f*(1.2 + 3.5*p), tt, 0.05);
+      out.gain.setTargetAtTime(0.05 + 0.20*p, tt, 0.06);
+    };
+  }
+
+  for (const n of nodes){ try { n.start(t); } catch(e){} }
+  out.gain.setValueAtTime(0.0001, t);
+  out.gain.exponentialRampToValueAtTime(0.05, t + 0.07);
+
+  return {
+    set,
+    stop(tt){
+      out.gain.cancelScheduledValues(tt);
+      out.gain.setValueAtTime(Math.max(out.gain.value, 0.0001), tt);
+      out.gain.exponentialRampToValueAtTime(0.0001, tt + 0.22);
+      stopAt(nodes, tt + 0.3);
+      setTimeout(() => { try { out.disconnect(); } catch(e){} }, 600);
+    },
+  };
+}
+
+/* craquement d'arc à la fermeture et à l'ouverture du circuit */
+function crackle(up){
+  if (!ac) return;
+  const t = ac.currentTime + 0.005;
+  const n = noiseSrc(), bp = ac.createBiquadFilter(), g = ac.createGain();
+  bp.type='bandpass'; bp.frequency.value = up ? 3200 : 1800; bp.Q.value = 1.2;
+  n.connect(bp); bp.connect(g); g.connect(bus.syn);
+  env(g.gain, t, up ? 0.20 : 0.11, 0.001, up ? 0.05 : 0.08);
+  n.start(t); stopAt([n], t + 0.2);
+}
 
 /* =========================================================================
    VOIX « I WANNA DANCE » — synthèse à formants
@@ -491,47 +767,38 @@ const VOX_SEG = [
   { a:0.99, b:1.18, f:[400,2000,3200], to:[400,2000,3200], g:0.05, n:0.75 },
 ];
 let voxP = { pitch:104, bits:9, speed:1.0, level:0.6 };
-
 function playVox(t){
   const total = beatDur() * voxP.speed * 2;
   const r = ratio(), fr = Math.pow(r, 0.45), carF = voxP.pitch * r;
-
   const car = ac.createOscillator(); car.type='sawtooth';
   const sub = ac.createOscillator(); sub.type='square';
   const subG= ac.createGain(); subG.gain.value = 0.35;
   const vib = ac.createOscillator(); vib.type='sine'; vib.frequency.value = 5.4;
   const vibG= ac.createGain(); vibG.gain.value = carF*0.012;
   vib.connect(vibG); vibG.connect(car.frequency);
-
   car.frequency.setValueAtTime(carF*0.94, t);
   car.frequency.linearRampToValueAtTime(carF*1.06, t + total*0.45);
   car.frequency.linearRampToValueAtTime(carF*0.84, t + total);
   sub.frequency.setValueAtTime(carF*0.5, t);
-
   const vin = ac.createGain();
   car.connect(vin); sub.connect(subG); subG.connect(vin);
-
   const sum = ac.createGain(); sum.gain.value = 0.9;
   const bands = [], bq = [11,13,10], bg = [1.0,0.72,0.34];
   for (let i = 0; i < 3; i++){
-    const b = ac.createBiquadFilter(); b.type='bandpass'; b.Q.setValueAtTime(bq[i], t);
-    const g = ac.createGain(); g.gain.value = bg[i];
-    vin.connect(b); b.connect(g); g.connect(sum); bands.push(b);
+    const b2 = ac.createBiquadFilter(); b2.type='bandpass'; b2.Q.setValueAtTime(bq[i], t);
+    const g2 = ac.createGain(); g2.gain.value = bg[i];
+    vin.connect(b2); b2.connect(g2); g2.connect(sum); bands.push(b2);
   }
   const body = ac.createGain(); body.gain.value = 0.10;
   vin.connect(body); body.connect(sum);
-
   const n = noiseSrc(), nbp = ac.createBiquadFilter(), ng = ac.createGain();
   nbp.type='bandpass'; nbp.frequency.value = 4200*fr; nbp.Q.value = 0.9;
   n.connect(nbp); nbp.connect(ng); ng.connect(sum);
-
   const crush = ac.createWaveShaper(); crush.curve = crushCurve(voxP.bits); crush.oversample='2x';
   const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = 5200*fr; lp.Q.value=0.7;
   const amp = ac.createGain();
-  sum.connect(crush); crush.connect(lp); lp.connect(amp); amp.connect(bus.perc);
-
-  vin.gain.setValueAtTime(0.0001, t);
-  ng.gain.setValueAtTime(0.0001, t);
+  sum.connect(crush); crush.connect(lp); lp.connect(amp); amp.connect(bus.syn);
+  vin.gain.setValueAtTime(0.0001, t); ng.gain.setValueAtTime(0.0001, t);
   amp.gain.setValueAtTime(0.0001, t);
   amp.gain.linearRampToValueAtTime(voxP.level, t + 0.012);
   for (const s of VOX_SEG){
@@ -540,336 +807,40 @@ function playVox(t){
       bands[i].frequency.setValueAtTime(s.f[i]*fr, t0);
       bands[i].frequency.linearRampToValueAtTime(s.to[i]*fr, t1);
     }
-    vin.gain.setTargetAtTime(Math.max(s.g, 0.0001), t0, 0.012);
-    ng.gain.setTargetAtTime(Math.max(s.n, 0.0001), t0, 0.006);
+    vin.gain.setTargetAtTime(Math.max(s.g,0.0001), t0, 0.012);
+    ng.gain.setTargetAtTime(Math.max(s.n,0.0001), t0, 0.006);
   }
   amp.gain.setValueAtTime(voxP.level, t + total*0.97);
   amp.gain.exponentialRampToValueAtTime(0.0001, t + total + 0.05);
-
   car.start(t); sub.start(t); vib.start(t); n.start(t);
-  stopAt([car, sub, vib, n], t + total + 0.2);
+  stopAt([car,sub,vib,n], t + total + 0.2);
 }
 
 /* =========================================================================
-   NAPPES TENUES — 3 basses + 3 synthés, continues, allumées aux boutons
-   ========================================================================= */
-function droneShell(attack, release){
-  const d = { attack, release, voices: [], nodes: [], dead: false };
-  d.out = ac.createGain(); d.out.gain.value = 0.0001; d.out.connect(bus.pad);
-  d.amp = ac.createGain(); d.amp.gain.value = 1;      // cible des LFO d'amplitude
-  d.amp.connect(d.out);
-  return d;
-}
-/* ajoute un oscillateur accordé sur la gamme ; mul permet les harmoniques non tempérées */
-function addVoice(d, dest, type, semi, oct, gain, det, mul){
-  const o = ac.createOscillator();
-  o.type = type;
-  o.detune.value = det || 0;
-  o.frequency.value = hz(semi, oct) * (mul || 1);
-  const g = ac.createGain(); g.gain.value = gain;
-  o.connect(g); g.connect(dest);
-  d.voices.push({ osc:o, semi, oct, mul: mul || 1 });
-  d.nodes.push(o);
-  return o;
-}
-function addLfo(d, rate, amount, target, phaseType){
-  const l = ac.createOscillator(); l.type = phaseType || 'sine'; l.frequency.value = rate;
-  const g = ac.createGain(); g.gain.value = amount;
-  l.connect(g); g.connect(target);
-  d.nodes.push(l);
-  return l;
-}
-function droneStart(d, t, level){
-  d.level = level;
-  for (const n of d.nodes){ try { n.start(t); } catch(e){} }
-  d.out.gain.cancelScheduledValues(t);
-  d.out.gain.setValueAtTime(0.0001, t);
-  d.out.gain.exponentialRampToValueAtTime(level, t + d.attack);
-}
-function droneKill(d, t){
-  if (d.dead) return;
-  d.dead = true;
-  const g = d.out.gain;
-  g.cancelScheduledValues(t);
-  g.setValueAtTime(Math.max(g.value, 0.0001), t);
-  g.exponentialRampToValueAtTime(0.0001, t + d.release);
-  stopAt(d.nodes, t + d.release + 0.1);
-  setTimeout(() => { try { d.out.disconnect(); } catch(e){} }, (d.release + 0.4) * 1000);
-}
-function droneRetune(d, t){
-  for (const v of d.voices){
-    v.osc.frequency.cancelScheduledValues(t);
-    v.osc.frequency.setTargetAtTime(hz(v.semi, v.oct) * v.mul, t, 0.09);
-  }
-}
-
-/* --- 1 · BASSE SUB ------------------------------------------------------ */
-function buildSub(p){
-  const d = droneShell(1.4, 1.1);
-  const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = p.cut; lp.Q.value = 0.8;
-  lp.connect(d.amp);
-  addVoice(d, lp, 'sine',     0, 0, 0.90, 0);
-  addVoice(d, lp, 'sine',     0, 0, 0.45, p.det);
-  addVoice(d, lp, 'triangle', 0, 1, 0.16, 0);
-  addLfo(d, p.rate, 0.14, d.amp.gain);
-  return d;
-}
-/* --- 2 · BASSE ACID (filtre balayé) ------------------------------------- */
-function buildAcid(p){
-  const d = droneShell(0.9, 0.9);
-  const lp = ac.createBiquadFilter(); lp.type='lowpass';
-  lp.frequency.value = p.cut; lp.Q.value = p.res;
-  lp.connect(d.amp);
-  addVoice(d, lp, p.wave, 0, 0, 0.55, 0);
-  addVoice(d, lp, p.wave, 0, 0, 0.40, p.det);
-  addVoice(d, lp, 'sine', 0, 0, 0.35, 0);
-  addLfo(d, p.rate, p.sweep, lp.frequency);
-  addLfo(d, p.rate*0.37, p.sweep*0.4, lp.frequency, 'triangle');
-  return d;
-}
-/* --- 3 · BASSE RUBBER (FM) ---------------------------------------------- */
-function buildFm(p){
-  const d = droneShell(1.1, 1.0);
-  const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = p.cut; lp.Q.value = 3;
-  lp.connect(d.amp);
-  const car = addVoice(d, lp, 'sine', 0, 0, 0.75, 0);
-  const mod = ac.createOscillator(); mod.type='sine';
-  mod.frequency.value = hz(0, 0) * p.ratio;
-  const mg = ac.createGain(); mg.gain.value = hz(0,0) * p.index;
-  mod.connect(mg); mg.connect(car.frequency);
-  d.voices.push({ osc: mod, semi: 0, oct: 0, mul: p.ratio });
-  d.nodes.push(mod);
-  addLfo(d, p.rate, hz(0,0) * p.index * 0.55, mg.gain);
-  return d;
-}
-/* --- 4 · NAPPE PAD ------------------------------------------------------ */
-function buildPad(p){
-  const d = droneShell(2.6, 2.2);
-  const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = p.cut; lp.Q.value = p.res;
-  lp.connect(d.amp);
-  for (const iv of p.chord){
-    addVoice(d, lp, p.wave, iv, p.oct, 0.17, -p.det);
-    addVoice(d, lp, p.wave, iv, p.oct, 0.17, +p.det);
-  }
-  addLfo(d, p.rate, p.cut * 0.45, lp.frequency);
-  addLfo(d, p.rate * 0.61, 0.10, d.amp.gain, 'triangle');
-  return d;
-}
-/* --- 5 · NAPPE ORGUE (harmoniques empilées) ----------------------------- */
-function buildOrgan(p){
-  const d = droneShell(0.6, 0.7);
-  const lp = ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = p.cut; lp.Q.value = 0.9;
-  lp.connect(d.amp);
-  for (const iv of p.chord){
-    for (let h = 0; h < p.harm.length; h++){
-      addVoice(d, lp, h === 0 ? p.wave : 'sine', iv, p.oct, p.harm[h], 0, h + 1);
-    }
-  }
-  addLfo(d, p.rate, 0.17, d.amp.gain);      // trémolo
-  return d;
-}
-/* --- 6 · NAPPE SHIMMER -------------------------------------------------- */
-function buildShimmer(p){
-  const d = droneShell(2.0, 1.8);
-  const bp = ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value = p.cut; bp.Q.value = p.res;
-  let tail = bp;
-  if (ac.createStereoPanner){
-    const pan = ac.createStereoPanner();
-    bp.connect(pan); tail = pan;
-    addLfo(d, p.rate * 0.43, 0.8, pan.pan, 'triangle');
-  }
-  tail.connect(d.amp);
-  for (const iv of p.chord){
-    addVoice(d, bp, p.wave, iv, p.oct,     0.11, -p.det);
-    addVoice(d, bp, 'triangle', iv, p.oct+1, 0.07, +p.det);
-  }
-  addLfo(d, p.rate, p.cut * 0.5, bp.frequency);
-  return d;
-}
-
-const DRONE_DEFS = [
-  { name:'BASS 1', sub:'SUB',     build: buildSub,     level:0.52, roll: () => ({ cut: rnd(140,320), det: rnd(4,14), rate: rnd(0.06,0.22) }) },
-  { name:'BASS 2', sub:'ACID',    build: buildAcid,    level:0.34, roll: () => ({ wave: pick(['sawtooth','square']), cut: rnd(170,340), res: rnd(7,15), det: rnd(6,18), rate: rnd(0.05,0.18), sweep: rnd(120,420) }) },
-  { name:'BASS 3', sub:'RUBBER',  build: buildFm,      level:0.38, roll: () => ({ cut: rnd(300,900), ratio: pick([1,1.5,2,3]), index: rnd(0.8,3.2), rate: rnd(0.07,0.25) }) },
-  { name:'SYN 1',  sub:'PAD',     build: buildPad,     level:0.30, roll: () => ({ wave: pick(['sawtooth','triangle']), oct: pick([2,3]), chord: pick([[0,3,7,12],[0,7,12,15],[0,3,7,10],[0,5,7,12]]), det: rnd(5,16), cut: rnd(700,1900), res: rnd(1,4), rate: rnd(0.04,0.14) }) },
-  { name:'SYN 2',  sub:'ORGUE',   build: buildOrgan,   level:0.24, roll: () => ({ wave: pick(['square','sawtooth']), oct: pick([2,3]), chord: pick([[0,7],[0,3,7],[0,7,12]]), harm: pick([[0.5,0.22,0.12],[0.45,0.3,0.0,0.14],[0.6,0.0,0.2]]), cut: rnd(1200,3200), rate: rnd(3.5,6.5) }) },
-  { name:'SYN 3',  sub:'SHIMMER', build: buildShimmer, level:0.30, roll: () => ({ wave: pick(['sawtooth','square']), oct: pick([3,4]), chord: pick([[0,7,12],[0,5,12],[0,3,10]]), det: rnd(8,24), cut: rnd(1400,3400), res: rnd(2,6), rate: rnd(0.05,0.2) }) },
-];
-
-const droneParams = DRONE_DEFS.map((d) => d.roll());
-const drones = new Array(6).fill(null);
-
-function droneOn(i){
-  if (drones[i]) return;
-  const def = DRONE_DEFS[i];
-  const d = def.build(droneParams[i]);
-  droneStart(d, ac.currentTime + 0.02, def.level);
-  drones[i] = d;
-}
-function droneOff(i){
-  if (!drones[i]) return;
-  droneKill(drones[i], ac.currentTime);
-  drones[i] = null;
-}
-function retuneAll(){
-  if (!ac) return;
-  const t = ac.currentTime;
-  for (const d of drones) if (d) droneRetune(d, t);
-}
-/* rejoue à l'identique une nappe active, après re-tirage de son timbre */
-function rebuildActive(){
-  for (let i = 0; i < 6; i++){
-    if (drones[i]){ droneOff(i); droneOn(i); }
-  }
-}
-
-/* =========================================================================
-   KIT — un son par doigt, sur chaque main
+   MAINS
    ========================================================================= */
 const FINGERS = [
-  { name:'POUCE',  tip:4,  mcp:2  },
-  { name:'INDEX',  tip:8,  mcp:5  },
-  { name:'MAJEUR', tip:12, mcp:9  },
-  { name:'ANNUL',  tip:16, mcp:13 },
-  { name:'AURIC',  tip:20, mcp:17 },
+  { name:'POUCE',  tip:4  }, { name:'INDEX',  tip:8  }, { name:'MAJEUR', tip:12 },
+  { name:'ANNUL',  tip:16 }, { name:'AURIC',  tip:20 },
 ];
-const KITS = {
-  L: [ { v:'kick', l:'KICK' }, { v:'hat',    l:'HAT' },   { v:'clap',  l:'CLAP' },  { v:'rim', l:'RIM' }, { v:'ohat', l:'OPEN' } ],
-  R: [ { v:'sub',  l:'808'  }, { v:'shaker', l:'SHAKER'}, { v:'snare', l:'SNARE'}, { v:'tom', l:'TOM' }, { v:'cow',  l:'COW'  } ],
-};
-
-/* =========================================================================
-   DÉTECTION DE FRAPPE
-   Pour chaque doigt on mesure l'extension c = |bout - base| / taille de main,
-   invariante au déplacement de la main, à sa distance et à sa rotation dans le
-   plan. Une frappe est un CREUX : de combien le doigt s'est raccourci par
-   rapport à il y a 100 ms. Une différence à retard fixe, et non un écart au
-   maximum d'une fenêtre : le maximum d'échantillons bruités est
-   systématiquement trop haut, ce qui créait un creux fantôme permanent. La
-   différence, elle, est non biaisée — à l'arrêt elle vaut zéro en moyenne.
-
-   Le bruit dominant est l'inclinaison de la main, qui raccourcit les cinq
-   doigts à la fois dans l'image. On retranche donc à chaque doigt un fond
-   commun : ce qui bouge ensemble s'annule, et il ne reste que ce qu'un doigt
-   fait tout seul. C'est ce qui permet un seuil bas sans partir dans tous les
-   sens.
-
-   Ce fond commun est la médiane des cinq creux, bornée à zéro, avec une
-   exception pour les accords : voir fond5.
-   ========================================================================= */
-const DET = {
-  LAG     : 3,      // retard de comparaison, en images de détection (~100 ms)
-  DROP    : 0.028,  // creux propre au doigt, en fraction de la longueur du doigt
-  STOP    : 0.25,   // en deçà, le doigt est considéré comme arrêté (unités/s)
-  GAP     : 90,     // ms entre deux frappes d'un même doigt
-  SMOOTH  : 0.50,   // lissage de l'extension
-};
-
-function newFingerState(){
-  return { h:null, c:0, warm:0, armed:true, last:0, flash:0, hit:0 };
-}
-/* Fond commun : la MÉDIANE des cinq creux, bornée à zéro. La médiane est le
-   plus sobre des estimateurs robustes face au bruit. La borne compte autant :
-   quand la main entre et que les cinq doigts s'ouvrent, les creux sont tous
-   négatifs ; sans borne, retrancher un fond négatif gonflerait le signal de
-   tous les doigts à la fois et ferait partir cinq sons à l'entrée.
-
-   Exception pour les accords : si la médiane est franchement haute ALORS QUE
-   le plus petit creux est quasi nul, c'est que plusieurs doigts frappent
-   pendant que d'autres ne bougent pas — et non que la main entière bouge. La
-   médiane est alors elle-même une frappe et annulerait l'accord ; on prend le
-   minimum. Les deux conditions ensemble ne se rencontrent ni dans le bruit
-   (médiane basse) ni dans un mouvement d'ensemble (minimum haut). */
-function fond5(a, seuil){
-  const b = a.slice().sort((x,y) => x-y);
-  if (b[2] > seuil && b[0] < seuil*0.4) return Math.max(0, b[0]);
-  return Math.max(0, b[2]);
-}
-const gest = { L: FINGERS.map(newFingerState), R: FINGERS.map(newFingerState) };
-function resetHand(key){ gest[key] = FINGERS.map(newFingerState); }
-
-let gridT0 = 0;
-function hitTime(){
-  if (!state.quantize) return ac.currentTime + 0.012;
-  const step = beatDur() / 4;                       // double-croche
-  const el = ac.currentTime - gridT0;
-  return gridT0 + Math.ceil((el + 0.02) / step) * step;
-}
-function strike(key, fi, vel){
-  const k = KITS[key][fi];
-  const fn = PERC[k.v];
-  if (!fn) return;
-  fn(hitTime(), 0.55 + vel * 0.45);
-  gest[key][fi].flash = 1;
-  gest[key][fi].hit++;
-}
-
-/* analyse d'une main : met à jour l'état des 5 doigts et déclenche */
-function analyseHand(key, pts, dt){
-  const S = Math.hypot(pts[0][0]-pts[9][0], pts[0][1]-pts[9][1]);
-  if (S < 8) return;                                 // main trop petite / bruitée
-  const st = gest[key];
-  const drop = new Array(5), vit = new Array(5);
-
-  for (let i = 0; i < 5; i++){
-    const f = FINGERS[i], s = st[i];
-    const raw = Math.hypot(pts[f.tip][0]-pts[f.mcp][0], pts[f.tip][1]-pts[f.mcp][1]) / S;
-    if (s.h === null){ s.c = raw; s.h = [raw]; s.warm = 0; }
-    const prev = s.c;
-    s.c = lerp(s.c, raw, DET.SMOOTH);
-    vit[i] = (s.c - prev) / dt;
-    drop[i] = s.h[0] - s.c;                          // creux sur le retard fixe
-    s.h.push(s.c);
-    while (s.h.length > DET.LAG) s.h.shift();
-    s.warm++;
-  }
-
-  const commun = fond5(drop, DET.DROP);              // ce que la main fait en bloc
-  const now = performance.now();
-
-  for (let i = 0; i < 5; i++){
-    const s = st[i];
-    if (s.warm <= DET.LAG + 1) continue;             // la main vient d'entrer
-    const d = drop[i] - commun;                      // ce que ce doigt fait seul
-    s.d = d;                                         // exposé pour l'étalonnage
-
-    if (s.armed && d > DET.DROP && now - s.last > DET.GAP){
-      s.armed = false;
-      s.last = now;
-      strike(key, i, clamp((d/DET.DROP - 1) / 1.6, 0, 1));
-    } else if (!s.armed && vit[i] > -DET.STOP && d < DET.DROP*0.5){
-      s.armed = true;                                // le doigt a cessé de descendre
-    }
-  }
-}
-
-/* =========================================================================
-   CAMÉRA + TRACKING
-   ========================================================================= */
-const video = $('#cam'), canvas = $('#fx'), ctx = canvas.getContext('2d'), stage = $('#stage');
-
 const BONES = [
-  [0,1],[1,2],[2,3],[3,4],
-  [0,5],[5,6],[6,7],[7,8],
-  [9,10],[10,11],[11,12],
-  [13,14],[14,15],[15,16],
-  [0,17],[17,18],[18,19],[19,20],
-  [5,9],[9,13],[13,17],
+  [0,1],[1,2],[2,3],[3,4],   [0,5],[5,6],[6,7],[7,8],
+  [9,10],[10,11],[11,12],    [13,14],[14,15],[15,16],
+  [0,17],[17,18],[18,19],[19,20],  [5,9],[9,13],[13,17],
 ];
-/* à quel doigt appartient chaque os (pour l'éclair de frappe) */
-const BONE_FINGER = BONES.map(([a,b]) => {
-  for (let i = 0; i < 5; i++){
-    const base = [1,5,9,13,17][i];
-    if (a >= base && a <= base+3 && b >= base && b <= base+3) return i;
-  }
-  return -1;
-});
+/* trois brins par fil : les teintes du ruban */
+const IDLE_COLS = ['#ff2e88','#9dff3c'];          // le rose et le vert de la référence
+const PALETTE = [
+  ['#ff2e88','#9dff3c','#ff8ec4'],
+  ['#9dff3c','#2ee8ff','#dcff9a'],
+  ['#2ee8ff','#a855ff','#9ff2ff'],
+  ['#a855ff','#ff2e88','#d7b3ff'],
+  ['#ffd23c','#ff2e88','#fff0a8'],
+];
 
-let handLandmarker = null, camReady = false, trackReady = false;
-let lastVideoTime = -1;
-let hands = [];                 // [{ key, pts }]
-let stageW = 0, stageH = 0, dpr = 1;
-let lastSeen = 0;
+const video = $('#cam'), canvas = $('#fx'), ctx = canvas.getContext('2d'), stage = $('#stage');
+let handLandmarker = null, camReady = false, trackReady = false, lastVideoTime = -1;
+let hands = [], stageW = 0, stageH = 0, dpr = 1, lastSeen = 0;
 
 function resize(){
   const r = stage.getBoundingClientRect();
@@ -881,23 +852,18 @@ function resize(){
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 350));
 
-/* normalisé -> pixels, en miroir, en tenant compte du recadrage cover */
 function mapPt(lx, ly){
   const vw = video.videoWidth || 640, vh = video.videoHeight || 480;
   const s = Math.max(stageW/vw, stageH/vh);
   const dw = vw*s, dh = vh*s;
   return [ (stageW-dw)/2 + (1-lx)*dw, (stageH-dh)/2 + ly*dh ];
 }
-
 async function initCamera(){
   const stream = await navigator.mediaDevices.getUserMedia({
-    audio: false,
-    video: { facingMode:'user', width:{ideal:960}, height:{ideal:720}, frameRate:{ideal:30} },
-  });
+    audio:false, video:{ facingMode:'user', width:{ideal:960}, height:{ideal:720}, frameRate:{ideal:30} } });
   video.srcObject = stream;
   await video.play();
-  camReady = true;
-  resize();
+  camReady = true; resize();
 }
 const CDNS = [
   'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14',
@@ -906,128 +872,244 @@ const CDNS = [
 async function initHands(){
   let mod = null, base = null, err = null;
   for (const c of CDNS){
-    try { mod = await import(c + '/vision_bundle.mjs'); base = c; break; }
-    catch(e){ err = e; }
+    try { mod = await import(c + '/vision_bundle.mjs'); base = c; break; } catch(e){ err = e; }
   }
   if (!mod) throw err || new Error('CDN injoignable');
   const vision = await mod.FilesetResolver.forVisionTasks(base + '/wasm');
   handLandmarker = await mod.HandLandmarker.createFromOptions(vision, {
-    baseOptions: {
-      modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
-      delegate: 'GPU',
-    },
-    runningMode: 'VIDEO',
-    numHands: 2,
-    minHandDetectionConfidence: 0.5,
-    minHandPresenceConfidence: 0.5,
-    minTrackingConfidence: 0.5,
+    baseOptions:{ modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task', delegate:'GPU' },
+    runningMode:'VIDEO', numHands:2,
+    minHandDetectionConfidence:0.5, minHandPresenceConfidence:0.5, minTrackingConfidence:0.5,
   });
   trackReady = true;
 }
-
-/* MediaPipe suppose l'image déjà en miroir (mode selfie) ; notre flux brut ne
-   l'est pas, le label doit donc être inversé pour désigner la vraie main. */
+/* MediaPipe suppose l'image déjà en miroir ; notre flux brut ne l'est pas */
 function handKey(cat, used){
   let k = (cat === 'Left') ? 'R' : 'L';
   if (used.has(k)) k = (k === 'L') ? 'R' : 'L';
   return k;
 }
-
 function readHands(nowMs){
-  if (!handLandmarker || !camReady || video.readyState < 2) return false;
-  if (video.currentTime === lastVideoTime) return false;
+  if (!handLandmarker || !camReady || video.readyState < 2) return;
+  if (video.currentTime === lastVideoTime) return;
   lastVideoTime = video.currentTime;
   let res = null;
-  try { res = handLandmarker.detectForVideo(video, nowMs); } catch(e){ return false; }
+  try { res = handLandmarker.detectForVideo(video, nowMs); } catch(e){ return; }
   const out = [], used = new Set();
   if (res && res.landmarks){
     for (let h = 0; h < res.landmarks.length; h++){
       const cat = (res.handednesses && res.handednesses[h] && res.handednesses[h][0])
         ? res.handednesses[h][0].categoryName : (h === 0 ? 'Left' : 'Right');
-      const key = handKey(cat, used);
-      used.add(key);
-      out.push({ key, pts: res.landmarks[h].map((l) => mapPt(l.x, l.y)) });
+      const key = handKey(cat, used); used.add(key);
+      const pts = res.landmarks[h].map((l) => mapPt(l.x, l.y));
+      out.push({ key, pts, S: Math.hypot(pts[0][0]-pts[9][0], pts[0][1]-pts[9][1]) });
     }
   }
-  // réinitialise l'état des mains qui viennent de disparaître
-  for (const k of ['L','R']) if (!used.has(k) && gest[k][0].warm > 0) resetHand(k);
   hands = out;
   if (out.length) lastSeen = nowMs;
-  return true;
 }
 
 /* =========================================================================
-   RENDU — squelette seul
+   CONNEXIONS
+   Deux doigts qui se rapprochent ferment un circuit. Entre les deux mains,
+   les 25 couples comptent ; sur une même main, seul le pouce fait contact,
+   parce que deux doigts voisins sont déjà collés au repos et déclencheraient
+   en permanence. Un seuil d'ouverture plus large que celui de fermeture
+   empêche le fil de clignoter quand la distance oscille autour du seuil.
    ========================================================================= */
-function drawHands(dt){
-  ctx.clearRect(0, 0, stageW, stageH);
-  if (!hands.length) return;
-  ctx.save();
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+/* Seuils en fraction de la longueur de paume. Resserrés : à 1.0 deux mains
+   simplement voisines fermaient six circuits d'un coup et tout se brouillait.
+   Il faut approcher deux bouts de doigts pour de bon. */
+const ON_INTER = 0.55, OFF_INTER = 0.82;
+const ON_INTRA = 0.45, OFF_INTRA = 0.70;
+const NEAR = 0.10;
+const MAX_CONN = 4;
 
-  for (const h of hands){
-    const pts = h.pts, st = gest[h.key], kit = KITS[h.key];
-    for (const s of st) s.flash = Math.max(0, s.flash - dt * 3.4);
+const conns = new Map();
+let connSeq = 0;
 
-    // os
-    ctx.shadowColor = 'rgba(255,255,255,.6)';
-    for (let b = 0; b < BONES.length; b++){
-      const fi = BONE_FINGER[b];
-      const fl = fi >= 0 ? st[fi].flash : 0;
-      const [a, c] = BONES[b];
-      ctx.beginPath();
-      ctx.moveTo(pts[a][0], pts[a][1]);
-      ctx.lineTo(pts[c][0], pts[c][1]);
-      ctx.strokeStyle = 'rgba(255,255,255,' + (0.42 + fl*0.58).toFixed(3) + ')';
-      ctx.lineWidth = 1.7 + fl * 2.4;
-      ctx.shadowBlur = 7 + fl * 16;
-      ctx.stroke();
-    }
+/* La note monte avec le rang des deux doigts reliés : pouce contre pouce
+   donne la fondamentale, auriculaire contre auriculaire le haut de la
+   tessiture. Lisible à l'oreille, et chaque couple garde sa note. */
+function pairFreq(ka, i, kb, j){
+  return hz(degree(i + j), 2);
+}
+function pairColor(ka, i, kb, j){
+  return PALETTE[(i*5 + j + (ka === kb ? 2 : 0)) % PALETTE.length];
+}
 
-    // articulations
-    ctx.shadowBlur = 6;
-    ctx.fillStyle = '#fff';
-    for (let i = 0; i < pts.length; i++){
-      ctx.beginPath();
-      ctx.arc(pts[i][0], pts[i][1], 2.1, 0, Math.PI*2);
-      ctx.fill();
-    }
+function updateConnections(){
+  if (!ac) return;
+  const cand = [];
+  const S = hands.length ? hands.reduce((a,h) => a + h.S, 0) / hands.length : 1;
+  if (S < 8){ for (const [id,c] of conns){ c.voice.stop(ac.currentTime); conns.delete(id); } return; }
 
-    // bouts de doigts, onde de frappe et étiquette du son
-    ctx.font = '600 9px ui-monospace, SF Mono, Menlo, monospace';
-    ctx.textBaseline = 'middle';
-    for (let i = 0; i < 5; i++){
-      const f = FINGERS[i], p = pts[f.tip], fl = st[i].flash;
-
-      ctx.beginPath();
-      ctx.arc(p[0], p[1], 3.4 + fl*2.2, 0, Math.PI*2);
-      ctx.fillStyle = '#fff'; ctx.shadowBlur = 8 + fl*18; ctx.fill();
-
-      if (fl > 0.02){                                  // onde de choc
-        ctx.beginPath();
-        ctx.arc(p[0], p[1], 7 + (1-fl)*26, 0, Math.PI*2);
-        ctx.strokeStyle = 'rgba(255,255,255,' + (fl*0.75).toFixed(3) + ')';
-        ctx.lineWidth = 1.5; ctx.shadowBlur = 14;
-        ctx.stroke();
+  for (let a = 0; a < hands.length; a++){
+    for (let b = a; b < hands.length; b++){
+      const ha = hands[a], hb = hands[b];
+      const intra = (a === b);
+      for (let i = 0; i < 5; i++){
+        for (let j = 0; j < 5; j++){
+          if (intra && (i !== 0 || j === 0)) continue;     // sur une main : pouce vers un autre doigt
+          if (!intra && a > b) continue;
+          const pa = ha.pts[FINGERS[i].tip], pb = hb.pts[FINGERS[j].tip];
+          const d = Math.hypot(pa[0]-pb[0], pa[1]-pb[1]) / S;
+          cand.push({ id: ha.key+i+'_'+hb.key+j, ka:ha.key, kb:hb.key, i, j, intra, d, pa, pb });
+        }
       }
-
-      // étiquette décalée vers l'extérieur de la main
-      const dx = p[0]-pts[0][0], dy = p[1]-pts[0][1];
-      const m = Math.hypot(dx, dy) || 1;
-      const lx = p[0] + dx/m*17, ly = p[1] + dy/m*17;
-      ctx.textAlign = dx < 0 ? 'right' : 'left';
-      ctx.shadowBlur = 5;
-      ctx.fillStyle = 'rgba(255,255,255,' + (0.62 + fl*0.38).toFixed(3) + ')';
-      ctx.fillText(kit[i].l, lx, ly);
     }
   }
-  ctx.restore();
+  cand.sort((x,y) => x.d - y.d);
+  const seen = new Set();
+  const t = ac.currentTime;
+
+  for (const c of cand){
+    const on = c.intra ? ON_INTRA : ON_INTER;
+    const off = c.intra ? OFF_INTRA : OFF_INTER;
+    const live = conns.get(c.id);
+    if (live){
+      if (c.d > off){ live.voice.stop(t); conns.delete(c.id); crackle(false); continue; }
+    } else {
+      if (c.d > on || conns.size >= MAX_CONN) continue;
+      const f = pairFreq(c.ka, c.i, c.kb, c.j);
+      conns.set(c.id, {
+        voice: makeVoice(state.synth, f), col: pairColor(c.ka, c.i, c.kb, c.j),
+        seed: (connSeq++ * 1.618) % 10, p:0, pSm:0, a:c.pa, b:c.pb, born: performance.now(),
+      });
+      crackle(true);
+    }
+    const k = conns.get(c.id);
+    if (!k) continue;
+    seen.add(c.id);
+    k.a = c.pa; k.b = c.pb;
+    k.p = clamp((off - c.d) / (off - NEAR), 0, 1);
+    k.pSm = lerp(k.pSm, k.p, 0.25);
+    k.voice.set(k.pSm, t);
+  }
+  // une main a disparu : on coupe ce qui n'a plus de support
+  for (const [id, k] of conns){
+    if (!seen.has(id)){ k.voice.stop(t); conns.delete(id); }
+  }
+}
+function killAllConnections(){
+  if (!ac) return;
+  const t = ac.currentTime;
+  for (const [id, k] of conns){ k.voice.stop(t); conns.delete(id); }
+}
+
+/* =========================================================================
+   RENDU — squelette blanc, filaments colorés
+   ========================================================================= */
+/* Ruban vibrant : plusieurs brins décalés, chacun déformé par trois ondes
+   qui courent le long du fil à des vitesses différentes. L'amplitude est
+   enveloppée en sinus pour s'annuler aux deux ancrages, d'où l'aspect noué
+   aux extrémités et lâche au milieu. */
+function ribbon(ax, ay, bx, by, t, seed, cols, o){
+  const dx = bx-ax, dy = by-ay;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy/len, ny = dx/len;
+  const N = o.N, strands = o.strands;
+  for (let s = 0; s < strands; s++){
+    const ph = seed*1.7 + s*2.1;
+    const amp = len * o.amp * (1 - s*0.16);
+    ctx.beginPath();
+    for (let k = 0; k <= N; k++){
+      const u = k/N;
+      const e = Math.sin(Math.PI*u);                 // noué aux deux bouts
+      const w = amp * e * (
+        0.55*Math.sin(u*8.5  + t*6.5  + ph) +
+        0.30*Math.sin(u*17.0 - t*11.0 + ph*1.6) +
+        0.15*Math.sin(u*31.0 + t*19.0 + ph*2.3));
+      const x = ax + dx*u + nx*w, y = ay + dy*u + ny*w;
+      if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    }
+    const col = cols[s % cols.length];
+    const wd  = o.width * (1 - s*0.2);
+    const al  = o.alpha * (1 - s*0.16) * (0.84 + 0.16*Math.random());
+    ctx.strokeStyle = col;
+    if (o.glow){ ctx.shadowColor = col; ctx.shadowBlur = o.glow; }
+    // deux passes sur le même tracé : un halo large, puis le brin net.
+    // C'est ce qui donne l'épaisseur de ruban plutôt qu'un trait.
+    ctx.lineWidth = wd * 3.0; ctx.globalAlpha = al * 0.22; ctx.stroke();
+    ctx.lineWidth = wd;       ctx.globalAlpha = al;        ctx.stroke();
+  }
+  ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+}
+
+/* éclat bref le long d'un fil actif : l'arc qui crépite */
+function spark(ax, ay, bx, by, col){
+  const u = 0.15 + Math.random()*0.7, w = (Math.random()*2-1) * 12;
+  const dx = bx-ax, dy = by-ay, len = Math.hypot(dx,dy) || 1;
+  const nx = -dy/len, ny = dx/len;
+  const x = ax + dx*u + nx*w, y = ay + dy*u + ny*w;
+  ctx.beginPath();
+  ctx.arc(x, y, 1.5 + Math.random()*2.5, 0, Math.PI*2);
+  ctx.fillStyle = '#fff'; ctx.shadowColor = col; ctx.shadowBlur = 14;
+  ctx.globalAlpha = 0.9; ctx.fill();
+  ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+}
+
+function draw(tSec){
+  ctx.clearRect(0, 0, stageW, stageH);
+  if (!hands.length) return;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+  // --- toile au repos : du bout des doigts vers le poignet, et de proche en
+  //     proche entre les doigts. Rose et vert entrelacés, comme la référence.
+  const IDLE = { strands:2, N:16, amp:0.115, width:1.15, alpha:0.42, glow:0 };
+  for (const h of hands){
+    const pts = h.pts, off = (h.key === 'L' ? 0 : 4.3);
+    for (let i = 0; i < 5; i++){
+      ribbon(pts[FINGERS[i].tip][0], pts[FINGERS[i].tip][1], pts[0][0], pts[0][1],
+             tSec, i*0.9 + off, IDLE_COLS, IDLE);
+    }
+    for (let i = 0; i < 4; i++){
+      ribbon(pts[FINGERS[i].tip][0], pts[FINGERS[i].tip][1],
+             pts[FINGERS[i+1].tip][0], pts[FINGERS[i+1].tip][1],
+             tSec, 5 + i*1.3 + off, IDLE_COLS, IDLE);
+    }
+  }
+
+  // --- squelette blanc
+  ctx.shadowColor = 'rgba(255,255,255,.55)';
+  for (const h of hands){
+    const pts = h.pts;
+    ctx.strokeStyle = 'rgba(255,255,255,.52)';
+    ctx.lineWidth = 1.6; ctx.shadowBlur = 5;
+    ctx.beginPath();
+    for (const [a, b] of BONES){ ctx.moveTo(pts[a][0], pts[a][1]); ctx.lineTo(pts[b][0], pts[b][1]); }
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.shadowBlur = 4;
+    for (let i = 0; i < pts.length; i++){
+      ctx.beginPath(); ctx.arc(pts[i][0], pts[i][1], 1.9, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  ctx.shadowBlur = 0;
+
+  // --- connexions actives
+  for (const [, k] of conns){
+    const p = k.pSm;
+    ribbon(k.a[0], k.a[1], k.b[0], k.b[1], tSec, k.seed, k.col, {
+      strands:3, N:26, amp:0.13 + 0.07*p, width:1.8 + 4.0*p,
+      alpha:0.55 + 0.45*p, glow:9 + 16*p,
+    });
+    if (Math.random() < 0.18 + 0.3*p) spark(k.a[0], k.a[1], k.b[0], k.b[1], k.col[0]);
+    for (const e of [k.a, k.b]){
+      ctx.beginPath();
+      ctx.arc(e[0], e[1], 2.5 + 4.5*p, 0, Math.PI*2);
+      ctx.fillStyle = k.col[0];
+      ctx.shadowColor = k.col[0]; ctx.shadowBlur = 12 + 14*p;
+      ctx.globalAlpha = 0.6 + 0.4*p;
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+  }
 }
 
 /* =========================================================================
    INTERFACE
    ========================================================================= */
-const statusEl = $('#status'), legendEl = $('#legend'), touchkit = $('#touchkit');
+const statusEl = $('#status'), legendEl = $('#legend');
 let sayTimer = null;
 function say(msg, sticky){
   statusEl.textContent = msg;
@@ -1035,46 +1117,72 @@ function say(msg, sticky){
   clearTimeout(sayTimer);
   if (!sticky) sayTimer = setTimeout(() => { statusEl.style.opacity = '0'; }, 2100);
 }
+legendEl.innerHTML =
+  '<div class="one"><div class="ttl">FILAMENTS</div>' +
+  '<p>RAPPROCHE DEUX DOIGTS<br>' +
+  'UN FIL S\'ALLUME ET CHANTE<br>' +
+  '<em>POUCE ↔ DOIGT</em> SUR UNE MAIN<br>' +
+  '<em>N\'IMPORTE QUEL COUPLE</em> ENTRE LES DEUX<br>' +
+  'PLUS C\'EST PRÈS, PLUS ÇA S\'OUVRE</p></div>';
 
-/* --- boutons de nappes -------------------------------------------------- */
-const napEls = [];
-DRONE_DEFS.forEach((def, i) => {
+/* --- rythmes ------------------------------------------------------------ */
+const beatEls = [];
+BEATS.forEach((bt, i) => {
   const b = document.createElement('button');
-  b.className = 'nap';
-  b.innerHTML = def.name + '<span class="s">' + def.sub + '</span>';
-  b.addEventListener('pointerdown', (e) => { e.preventDefault(); toggleDrone(i); });
-  (i < 3 ? $('#rowBass') : $('#rowSyn')).appendChild(b);
-  napEls.push(b);
+  b.className = 'nap beat';
+  b.innerHTML = bt.name + '<span class="s">' + bt.sub + '</span>';
+  b.addEventListener('pointerdown', (e) => { e.preventDefault(); setBeat(i); });
+  $('#rowBeat').appendChild(b);
+  beatEls.push(b);
 });
-function toggleDrone(i){
-  if (drones[i]){ droneOff(i); napEls[i].classList.remove('on'); }
-  else { droneOn(i); napEls[i].classList.add('on'); }
+function refreshBeatUI(){
+  beatEls.forEach((el, i) => el.classList.toggle('on', state.beat === i));
+  $('#rndBeat').classList.toggle('on', state.beat === 4);
 }
+function setBeat(i){
+  state.beat = (state.beat === i) ? -1 : i;
+  if (state.beat >= 0){ state.step = 0; lastBassDeg = null; startClock(); }
+  refreshBeatUI();
+  say(state.beat < 0 ? 'RYTHME COUPÉ' : 'RYTHME · ' + (currentBeat() || {}).name);
+}
+$('#rndBeat').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  rndBeatPattern = randomBeat();
+  state.root  = pick([0,-2,-4,3,5,-5,2]);
+  state.scale = pick([[0,3,5,7,10],[0,2,3,7,8],[0,1,5,7,8],[0,3,5,6,7,10]]);
+  state.beat = 4; state.step = 0; lastBassDeg = null;
+  longBassRetune(); startClock(); refreshBeatUI();
+  say('BEAT TIRÉ AU SORT');
+});
 
-/* --- légende du kit (visible tant qu'aucune main n'est vue) -------------- */
-(function buildLegend(){
-  const col = (title, kit) => {
-    let h = '<div class="col"><div class="ttl">' + title + '</div>';
-    for (let i = 0; i < 5; i++){
-      h += '<div class="row"><span>' + FINGERS[i].name + '</span><b>' + kit[i].l + '</b></div>';
-    }
-    return h + '</div>';
-  };
-  legendEl.innerHTML = col('MAIN GAUCHE', KITS.L) + col('MAIN DROITE', KITS.R);
-})();
-
-/* --- repli tactile ------------------------------------------------------ */
-(function buildTouchKit(){
-  for (const key of ['L','R']){
-    for (let i = 0; i < 5; i++){
-      const b = document.createElement('div');
-      b.className = 'tk';
-      b.textContent = KITS[key][i].l;
-      b.addEventListener('pointerdown', (e) => { e.preventDefault(); strike(key, i, 0.8); });
-      touchkit.appendChild(b);
-    }
-  }
-})();
+/* --- basse longue, style de synthé, voix -------------------------------- */
+const bassBtn = $('#bassBtn');
+bassBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  state.longBass = !state.longBass;
+  bassBtn.classList.toggle('on', state.longBass);
+  if (state.longBass) longBassOn(); else longBassOff();
+  say(state.longBass ? 'BASSE LONGUE' : 'BASSE COUPÉE');
+});
+$('#synthBtn').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  state.synth = (state.synth + 1) % SYNTHS.length;
+  $('#synthName').textContent = SYNTHS[state.synth];
+  killAllConnections();                       // les voix tenues changent de timbre
+  say('SYNTHÉ · ' + SYNTHS[state.synth]);
+});
+$('#voxBtn').addEventListener('pointerdown', (e) => {
+  e.preventDefault(); bump(e.currentTarget);
+  if (ac) playVox(ac.currentTime + 0.02);
+});
+$('#allOff').addEventListener('pointerdown', (e) => {
+  e.preventDefault(); bump(e.currentTarget);
+  state.beat = -1; refreshBeatUI();
+  if (state.longBass){ state.longBass = false; bassBtn.classList.remove('on'); longBassOff(); }
+  killAllConnections();
+  say('TOUT COUPÉ');
+});
+function bump(el){ el.classList.add('hit'); setTimeout(() => el.classList.remove('hit'), 110); }
 
 /* --- potards ------------------------------------------------------------ */
 function makeKnob(sel, opts){
@@ -1085,16 +1193,13 @@ function makeKnob(sel, opts){
   const vA  = document.createElementNS(ns, 'path'); vA.setAttribute('class','kval');
   svg.appendChild(bgA); svg.appendChild(vA); dial.appendChild(svg);
   const ptr = document.createElement('div'); ptr.className = 'kptr'; dial.appendChild(ptr);
-
   const R = 20, CX = 24, CY = 24, A0 = -225, A1 = 45;
   const pt = (a) => { const r = a*Math.PI/180; return [CX + R*Math.cos(r), CY + R*Math.sin(r)]; };
   const arc = (f, t) => {
     const [x0,y0] = pt(f), [x1,y1] = pt(t);
-    return 'M' + x0.toFixed(2) + ' ' + y0.toFixed(2) + ' A' + R + ' ' + R + ' 0 ' +
-           (Math.abs(t-f) > 180 ? 1 : 0) + ' 1 ' + x1.toFixed(2) + ' ' + y1.toFixed(2);
+    return 'M'+x0.toFixed(2)+' '+y0.toFixed(2)+' A'+R+' '+R+' 0 '+(Math.abs(t-f)>180?1:0)+' 1 '+x1.toFixed(2)+' '+y1.toFixed(2);
   };
   bgA.setAttribute('d', arc(A0, A1));
-
   let value = opts.value;
   function render(){
     const n = (value - opts.min) / (opts.max - opts.min);
@@ -1110,17 +1215,14 @@ function makeKnob(sel, opts){
     opts.onchange(value);
   }
   let drag = false, sy = 0, sv = 0;
-  dial.addEventListener('pointerdown', (e) => {
-    e.preventDefault(); drag = true; sy = e.clientY; sv = value; dial.setPointerCapture(e.pointerId);
-  });
+  dial.addEventListener('pointerdown', (e) => { e.preventDefault(); drag = true; sy = e.clientY; sv = value; dial.setPointerCapture(e.pointerId); });
   dial.addEventListener('pointermove', (e) => {
     if (!drag) return;
     e.preventDefault();
     let v = sv + (sy - e.clientY) * (opts.max - opts.min) / 170;
     if (opts.step) v = Math.round(v/opts.step)*opts.step;
     if (opts.bipolar && Math.abs(v) < (opts.max-opts.min)*0.045) v = 0;
-    value = clamp(v, opts.min, opts.max);
-    render();
+    value = clamp(v, opts.min, opts.max); render();
   });
   const end = (e) => { drag = false; try { dial.releasePointerCapture(e.pointerId); } catch(err){} };
   dial.addEventListener('pointerup', end);
@@ -1128,26 +1230,22 @@ function makeKnob(sel, opts){
   dial.addEventListener('dblclick', () => { value = opts.value; render(); });
   render();
 }
-makeKnob('#k-delay', { min:0, max:1, value:0, fmt:(v)=>Math.round(v*100),
-  onchange:(v)=>{ state.delay = v; applyFx(); } });
-makeKnob('#k-drive', { min:0, max:1, value:0, fmt:(v)=>Math.round(v*100),
-  onchange:(v)=>{ state.drive = v; applyFx(); } });
+makeKnob('#k-delay', { min:0, max:1, value:0, fmt:(v)=>Math.round(v*100), onchange:(v)=>{ state.delay=v; applyFx(); } });
+makeKnob('#k-drive', { min:0, max:1, value:0, fmt:(v)=>Math.round(v*100), onchange:(v)=>{ state.drive=v; applyFx(); } });
 makeKnob('#k-pitch', { min:-12, max:12, value:0, step:1, bipolar:true,
-  fmt:(v)=>(v>0?'+':'')+Math.round(v),
-  onchange:(v)=>{ state.transpose = v; retuneAll(); } });
+  fmt:(v)=>(v>0?'+':'')+Math.round(v), onchange:(v)=>{ state.transpose=v; longBassRetune(); } });
 
 /* --- BPM ---------------------------------------------------------------- */
 const bpmEl = $('#bpm');
 function setBpm(v){
-  state.bpm = clamp(Math.round(v), 88, 152);
+  state.bpm = clamp(Math.round(v), 100, 150);
   bpmEl.value = state.bpm;
-  bpmEl.style.setProperty('--p', ((state.bpm-88)/64*100) + '%');
+  bpmEl.style.setProperty('--p', ((state.bpm-100)/50*100) + '%');
   $('#bpmread').textContent = state.bpm;
   applyFx();
 }
 bpmEl.addEventListener('input', () => setBpm(+bpmEl.value));
-setBpm(118);
-
+setBpm(124);
 let taps = [];
 $('#tap').addEventListener('pointerdown', (e) => {
   e.preventDefault();
@@ -1158,82 +1256,39 @@ $('#tap').addEventListener('pointerdown', (e) => {
     let s = 0;
     for (let i = 1; i < taps.length; i++) s += taps[i] - taps[i-1];
     setBpm(60000 / (s / (taps.length-1)));
-    if (ac) gridT0 = ac.currentTime;
   }
 });
 
-/* --- boutons ------------------------------------------------------------ */
-function bump(el){ el.classList.add('hit'); setTimeout(() => el.classList.remove('hit'), 110); }
-
-$('#vox').addEventListener('pointerdown', (e) => {
-  e.preventDefault(); bump(e.currentTarget);
-  if (ac) playVox(ac.currentTime + 0.02);
-});
-const quantBtn = $('#quant');
-quantBtn.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  state.quantize = !state.quantize;
-  quantBtn.classList.toggle('on', state.quantize);
-  if (ac) gridT0 = ac.currentTime;
-  say(state.quantize ? 'FRAPPES CALÉES SUR LA GRILLE' : 'FRAPPES LIBRES');
-});
-$('#allOff').addEventListener('pointerdown', (e) => {
-  e.preventDefault(); bump(e.currentTarget);
-  for (let i = 0; i < 6; i++) if (drones[i]){ droneOff(i); napEls[i].classList.remove('on'); }
-  say('NAPPES COUPÉES');
-});
-$('#rnd').addEventListener('pointerdown', (e) => {
-  e.preventDefault(); bump(e.currentTarget);
-  for (let i = 0; i < 6; i++) droneParams[i] = DRONE_DEFS[i].roll();
-  state.root  = pick([0,-2,-4,3,5,-5,2]);
-  state.scale = pick([[0,3,5,7,10],[0,2,3,7,8],[0,1,5,7,8],[0,3,5,6,7,10]]);
-  voxP = { pitch: rnd(82,132), bits: pick([5,7,9,13]), speed: rnd(0.85,1.15), level: 0.6 };
-  rebuildActive();
-  say('NAPPES RANDOMISÉES');
-});
-
-/* --- grille visuelle de 16 doubles-croches ------------------------------ */
+/* --- grille de 16 pas ---------------------------------------------------- */
 const gq = [];
-for (let i = 0; i < 16; i++){
+for (let i = 0; i < STEPS; i++){
   const d = document.createElement('div');
   d.className = 'gq' + (i % 4 === 0 ? ' beat' : '');
   $('#grid16').appendChild(d); gq.push(d);
 }
 let lastQ = -1;
-function drawGrid(){
+function drainVis(){
   if (!ac) return;
-  const step = beatDur() / 4;
-  const i = Math.floor(((ac.currentTime - gridT0) / step) % 16 + 16) % 16;
-  if (i !== lastQ){
+  const now = ac.currentTime;
+  while (visQ.length && visQ[0].t <= now + 0.015){
+    const ev = visQ.shift();
+    if (now - ev.t > 0.25) continue;
     if (lastQ >= 0) gq[lastQ].classList.remove('on');
-    gq[i].classList.add('on');
-    lastQ = i;
+    gq[ev.step].classList.add('on'); lastQ = ev.step;
   }
+  if (visQ.length > 64) visQ.splice(0, visQ.length - 64);
 }
 
 /* =========================================================================
    BOUCLE
    ========================================================================= */
-let lastFrame = performance.now();
-let lastDetT  = performance.now();
 function loop(){
   requestAnimationFrame(loop);
   const now = performance.now();
-  const dt = Math.min((now - lastFrame)/1000, 0.1);
-  lastFrame = now;
-
-  // L'analyse ne tourne qu'aux images réellement nouvelles, et dérive sur le
-  // temps écoulé depuis la détection précédente. Sinon une image d'affichage
-  // sur deux donne une vitesse nulle et l'autre une vitesse doublée.
-  if (readHands(now)){
-    const ddt = clamp((now - lastDetT)/1000, 0.008, 0.2);
-    lastDetT = now;
-    for (const h of hands) analyseHand(h.key, h.pts, ddt);
-  }
-  drawHands(dt);
-  drawGrid();
-
-  // la légende s'efface dès qu'une main est vue
+  readHands(now);
+  updateConnections();
+  draw(now / 1000);
+  drainVis();
   if (trackReady) legendEl.style.opacity = (now - lastSeen < 1200) ? '0' : '1';
 }
 
@@ -1249,39 +1304,31 @@ $('#startbtn').addEventListener('click', async () => {
     if (ac.state === 'suspended') await ac.resume();
   } catch(e){
     bootnote.textContent = 'AUDIO INDISPONIBLE : ' + e.message;
-    $('#startbtn').disabled = false;
-    return;
+    $('#startbtn').disabled = false; return;
   }
-  gridT0 = ac.currentTime;
   boot.classList.add('hidden');
-  resize();
-  loop();
-
-  toggleDrone(0);                                   // une basse pour commencer
+  resize(); loop();
+  setBeat(0);                                   // on démarre sur le techno
   say('AUTORISE LA CAMÉRA…', true);
-
   try {
     await initCamera();
   } catch(e){
     console.warn('camera', e);
-    say('CAMÉRA REFUSÉE — KIT TACTILE', true);
+    say('CAMÉRA REFUSÉE — RYTHMES SEULS', true);
     stage.style.background = 'linear-gradient(160deg,#141619,#0b0c0e)';
     legendEl.style.opacity = '0';
-    touchkit.classList.add('show');
     return;
   }
-  say('CHARGEMENT DU MODÈLE…', true);
+  say('CHARGEMENT DU SUIVI…', true);
   try {
     await initHands();
-    say('PLIE UN DOIGT POUR FRAPPER');
+    say('RAPPROCHE DEUX DOIGTS');
   } catch(e){
-    console.warn('handtracking', e);
-    say('TRACKING INDISPONIBLE — KIT TACTILE', true);
+    console.warn('tracking', e);
+    say('SUIVI INDISPONIBLE — RYTHMES SEULS', true);
     legendEl.style.opacity = '0';
-    touchkit.classList.add('show');
   }
 });
-
 document.addEventListener('visibilitychange', () => {
   if (!ac) return;
   if (document.hidden) ac.suspend(); else ac.resume();
@@ -1289,12 +1336,13 @@ document.addEventListener('visibilitychange', () => {
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive:false });
 
-/* poignée de debug (inspecteur web Safari) */
+/* poignée de debug / tests */
 window.TR9 = {
-  state, bus, gest, drones, droneParams, PERC, strike, toggleDrone, DET, analyseHand,
+  state, bus, conns, BEATS, SYNTHS, PERC, setBeat, killAllConnections,
   get ac(){ return ac; },
   get hands(){ return hands; },
   set hands(h){ hands = h; },
+  updateConnections, pairFreq,
 };
 
 resize();
