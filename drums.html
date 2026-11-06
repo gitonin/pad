@@ -864,16 +864,18 @@ const BONES = [
   [0,17],[17,18],[18,19],[19,20],  [5,9],[9,13],[13,17],
 ];
 /* trois brins par fil : les teintes du ruban */
-const IDLE_COLS = ['#ff2e88','#9dff3c'];          // le rose et le vert de la référence
+/* Huit accords de gris et de beiges. Chaque couple de doigts en reçoit un :
+   la distinction entre fils tient aux nuances et au dessin du ruban, plus à
+   la couleur vive. */
 const PALETTE = [
-  ['#ff2e88','#9dff3c','#ff8ec4'],
-  ['#9dff3c','#2ee8ff','#dcff9a'],
-  ['#2ee8ff','#a855ff','#9ff2ff'],
-  ['#a855ff','#ff2e88','#d7b3ff'],
-  ['#ffd23c','#ff2e88','#fff0a8'],
-  ['#ff6a1f','#2ee8ff','#ffb07a'],
-  ['#3cff9d','#ff2e88','#a8ffd4'],
-  ['#ff2e88','#ffd23c','#ff9ec9'],
+  ['#efe3cc','#b9ab93','#d9cbb2'],   // beige clair
+  ['#d8dadd','#9aa0a6','#c2c6ca'],   // gris froid
+  ['#e4d2b2','#a6937a','#cfbfa2'],   // sable
+  ['#c9c4bb','#8d887f','#b3ada3'],   // taupe
+  ['#f2ead9','#c0b49c','#ded3bd'],   // ivoire
+  ['#bfc4c8','#868c92','#a7acb1'],   // ardoise
+  ['#ddceb4','#9e8f76','#c7b89d'],   // lin
+  ['#d2cfc8','#96938c','#bab6ae'],   // pierre
 ];
 
 const video = $('#cam'), canvas = $('#fx'), ctx = canvas.getContext('2d'), stage = $('#stage');
@@ -1075,7 +1077,7 @@ function ribbon(ax, ay, bx, by, t, seed, cols, o){
     if (o.glow){ ctx.shadowColor = col; ctx.shadowBlur = o.glow; }
     // deux passes sur le même tracé : un halo large, puis le brin net.
     // C'est ce qui donne l'épaisseur de ruban plutôt qu'un trait.
-    ctx.lineWidth = wd * 3.0; ctx.globalAlpha = al * 0.22; ctx.stroke();
+    ctx.lineWidth = wd * 2.4; ctx.globalAlpha = al * 0.20; ctx.stroke();
     ctx.lineWidth = wd;       ctx.globalAlpha = al;        ctx.stroke();
   }
   ctx.globalAlpha = 1; ctx.shadowBlur = 0;
@@ -1088,7 +1090,7 @@ function spark(ax, ay, bx, by, col){
   const nx = -dy/len, ny = dx/len;
   const x = ax + dx*u + nx*w, y = ay + dy*u + ny*w;
   ctx.beginPath();
-  ctx.arc(x, y, 1.5 + Math.random()*2.5, 0, Math.PI*2);
+  ctx.arc(x, y, 1.1 + Math.random()*1.8, 0, Math.PI*2);
   ctx.fillStyle = '#fff'; ctx.shadowColor = col; ctx.shadowBlur = 14;
   ctx.globalAlpha = 0.9; ctx.fill();
   ctx.globalAlpha = 1; ctx.shadowBlur = 0;
@@ -1098,22 +1100,6 @@ function draw(tSec){
   ctx.clearRect(0, 0, stageW, stageH);
   if (!hands.length) return;
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-
-  // --- toile au repos : du bout des doigts vers le poignet, et de proche en
-  //     proche entre les doigts. Rose et vert entrelacés, comme la référence.
-  const IDLE = { strands:2, N:16, amp:0.115, width:1.15, alpha:0.42, glow:0 };
-  for (const h of hands){
-    const pts = h.pts, off = (h.key === 'L' ? 0 : 4.3);
-    for (let i = 0; i < 5; i++){
-      ribbon(pts[FINGERS[i].tip][0], pts[FINGERS[i].tip][1], pts[0][0], pts[0][1],
-             tSec, i*0.9 + off, IDLE_COLS, IDLE);
-    }
-    for (let i = 0; i < 4; i++){
-      ribbon(pts[FINGERS[i].tip][0], pts[FINGERS[i].tip][1],
-             pts[FINGERS[i+1].tip][0], pts[FINGERS[i+1].tip][1],
-             tSec, 5 + i*1.3 + off, IDLE_COLS, IDLE);
-    }
-  }
 
   // --- squelette blanc
   ctx.shadowColor = 'rgba(255,255,255,.55)';
@@ -1135,13 +1121,13 @@ function draw(tSec){
   for (const [, k] of conns){
     const p = k.pSm;
     ribbon(k.a[0], k.a[1], k.b[0], k.b[1], tSec * k.v.speed, k.seed, k.col, {
-      strands:k.v.strands, N:26, amp:k.v.amp + 0.07*p, width:1.8 + 4.0*p,
-      alpha:0.55 + 0.45*p, glow:9 + 16*p,
+      strands:k.v.strands, N:26, amp:k.v.amp + 0.07*p, width:0.95 + 2.3*p,
+      alpha:0.6 + 0.4*p, glow:8 + 14*p,
     });
     if (Math.random() < 0.18 + 0.3*p) spark(k.a[0], k.a[1], k.b[0], k.b[1], k.col[0]);
     for (const e of [k.a, k.b]){
       ctx.beginPath();
-      ctx.arc(e[0], e[1], 2.5 + 4.5*p, 0, Math.PI*2);
+      ctx.arc(e[0], e[1], 1.9 + 3.0*p, 0, Math.PI*2);
       ctx.fillStyle = k.col[0];
       ctx.shadowColor = k.col[0]; ctx.shadowBlur = 12 + 14*p;
       ctx.globalAlpha = 0.6 + 0.4*p;

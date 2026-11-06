@@ -9,10 +9,11 @@ Une seule page autonome, aucune dépendance à installer, aucun échantillon : l
 synthétisé en Web Audio.
 
 > **`drums.html`** — l'autre expérience du dépôt : *FILAMENTS*. Caméra en noir et
-> blanc, squelette des mains en fil de fer blanc, et une toile de rubans roses et
-> verts qui vibrent entre les doigts et le poignet. **Rapprocher un doigt de la main
-> gauche d'un doigt de la main droite ferme un circuit** : un fil s'allume, crépite,
-> et une voix de synthé naît. Il faut les deux mains — rien ne se passe entre deux
+> blanc, squelette des mains en fil de fer blanc. **Rapprocher un doigt de la main
+> gauche d'un doigt de la main droite ferme un circuit** : un ruban fin se tend entre
+> les deux bouts de doigts, ondule, crépite, et une voix de synthé naît. Rien n'est
+> dessiné tant qu'aucun circuit n'est fermé : seuls les fils de connexion existent,
+> en nuances de gris et de beige. Il faut les deux mains — rien ne se passe entre deux
 > doigts d'une même main. Chacun des 25 couples a sa propre identité : note, octave,
 > forme d'onde, désaccord, résonance, couleur, nombre de brins et vitesse
 > d'ondulation en découlent, si bien que deux fils ne se ressemblent jamais. La
