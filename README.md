@@ -17,11 +17,15 @@ synthétisé en Web Audio.
 > doigts d'une même main. Chacun des 25 couples a sa propre identité : note, octave,
 > forme d'onde, désaccord, résonance, couleur, nombre de brins et vitesse
 > d'ondulation en découlent, si bien que deux fils ne se ressemblent jamais. La
-> distance ouvre le timbre en continu. Cinq synthés d'inspiration Roland au bouton
-> **SYNTHÉ** (Juno à impulsion et sous-octave, supersaw, SH-101, TB-303 très
-> résonant, PWM), tous passés dans un chorus d'ensemble ; quatre rythmes techno /
-> house avec basse, un **RND BEAT**, une **BASSE** longue tirée au sort parmi six
-> patchs à chaque activation, les trois potards d'effet et la voix digitalisée.
+> distance ouvre le timbre en continu, et **la hauteur des mains à l'écran transpose
+> les voix** : mains hautes, aigu ; mains basses, grave, sur un peu moins de deux
+> octaves. La transposition est calée sur la gamme plutôt que glissée en continu —
+> à cinq voix tenues, un glissando libre sonnerait faux en permanence. Dix synthés
+> d'inspiration Roland au bouton **SYNTHÉ** (Juno, supersaw, SH-101, TB-303, PWM, JX,
+> hoover, cloche FM, orgue, vocodeur), tous passés dans un chorus d'ensemble ; quatre
+> rythmes techno / house avec basse, un **RND BEAT**, une **BASSE** longue tirée au
+> sort parmi six patchs à chaque activation, les trois potards d'effet et la voix
+> digitalisée.
 
 ---
 
