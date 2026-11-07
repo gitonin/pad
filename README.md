@@ -11,7 +11,7 @@ synthétisé en Web Audio.
 > **`drums.html`** — l'autre expérience du dépôt : *FILAMENTS*. Caméra en noir et
 > blanc, squelette des mains en fil de fer blanc. **Rapprocher un doigt de la main
 > gauche d'un doigt de la main droite ferme un circuit** : un ruban fin se tend entre
-> les deux bouts de doigts, ondule, crépite, et une voix de synthé naît. Rien n'est
+> les deux bouts de doigts, ondule, et une voix de synthé naît. Rien n'est
 > dessiné tant qu'aucun circuit n'est fermé : seuls les fils de connexion existent,
 > en nuances de gris et de beige. Il faut les deux mains — rien ne se passe entre deux
 > doigts d'une même main. Chacun des 25 couples a sa propre identité : note, octave,
@@ -25,7 +25,8 @@ synthétisé en Web Audio.
 > hoover, cloche FM, orgue, vocodeur), tous passés dans un chorus d'ensemble ; quatre
 > rythmes techno / house avec basse, un **RND BEAT**, une **BASSE** longue tirée au
 > sort parmi six patchs à chaque activation, les trois potards d'effet et la voix
-> digitalisée.
+> digitalisée. Le bouton **SQUELETTE** efface le filaire des mains à la demande : ne
+> restent alors que les fils tendus entre les doigts, flottant seuls à l'écran.
 
 ---
 
